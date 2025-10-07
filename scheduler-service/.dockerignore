@@ -1,0 +1,60 @@
+# Build artifacts
+bin/
+obj/
+out/
+
+# User-specific files
+*.suo
+*.user
+*.userosensitivity
+*.sln.docstates
+
+# Visual Studio cache/options
+.vs/
+.vscode/
+
+# NuGet packages
+*.nupkg
+*.snupkg
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.idea/
+*.swp
+*.swo
+*~
+
+# Test results
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+
+# Docker
+.dockerignore
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+
+# Exclude test directories
+**/SchedulerService.Tests/**
+**/*.Tests/**
+**/tests/**
+**/Tests/**

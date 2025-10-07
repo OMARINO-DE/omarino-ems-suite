@@ -1,0 +1,111 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://omarino.de/schemas/meter.json",
+  "title": "Meter",
+  "description": "Physical or virtual metering device metadata",
+  "type": "object",
+  "required": ["id", "name", "meter_type"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique meter identifier"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "description": "Human-readable meter name"
+    },
+    "meter_type": {
+      "type": "string",
+      "enum": ["electricity", "gas", "water", "heat", "virtual"],
+      "description": "Type of metered commodity"
+    },
+    "location": {
+      "type": "object",
+      "description": "Geographic location of the meter",
+      "properties": {
+        "latitude": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
+        },
+        "longitude": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        },
+        "address": {
+          "type": "string"
+        },
+        "site_id": {
+          "type": "string"
+        }
+      }
+    },
+    "tags": {
+      "type": "object",
+      "description": "Key-value tags for filtering and grouping",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "examples": [
+        {
+          "building": "HQ",
+          "floor": "3",
+          "department": "R&D"
+        }
+      ]
+    },
+    "sampling_interval": {
+      "type": "string",
+      "description": "Expected sampling interval (ISO 8601 duration)",
+      "pattern": "^P(?:\\d+Y)?(?:\\d+M)?(?:\\d+D)?(?:T(?:\\d+H)?(?:\\d+M)?(?:\\d+(?:\\.\\d+)?S)?)?$",
+      "examples": ["PT15M", "PT1H", "P1D"]
+    },
+    "timezone": {
+      "type": "string",
+      "description": "IANA timezone identifier",
+      "examples": ["Europe/Berlin", "UTC", "America/New_York"]
+    },
+    "commissioned_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Date when meter was commissioned"
+    },
+    "decommissioned_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Date when meter was decommissioned (if applicable)"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "examples": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "name": "Building A - Main Feed",
+      "meter_type": "electricity",
+      "location": {
+        "latitude": 52.520008,
+        "longitude": 13.404954,
+        "address": "Alexanderplatz 1, 10178 Berlin",
+        "site_id": "SITE001"
+      },
+      "tags": {
+        "building": "A",
+        "criticality": "high"
+      },
+      "sampling_interval": "PT15M",
+      "timezone": "Europe/Berlin",
+      "commissioned_at": "2023-01-15T00:00:00Z"
+    }
+  ]
+}

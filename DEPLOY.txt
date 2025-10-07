@@ -1,0 +1,135 @@
+╔═══════════════════════════════════════════════════════════╗
+║         DEPLOYMENT INSTRUCTIONS - READ THIS FIRST         ║
+╚═══════════════════════════════════════════════════════════╝
+
+🚀 QUICK DEPLOY - Run these commands on your server:
+
+1. Connect to server:
+   ssh omar@192.168.75.20
+
+2. Navigate to project:
+   cd ~/OMARINO-EMS-Suite
+
+3. Pull latest code:
+   git pull origin main
+
+4. Run deployment script:
+   ./deploy-all.sh
+
+That's it! The script will:
+✅ Verify database schema
+✅ Deploy forecast service
+✅ Deploy optimize service  
+✅ Deploy webapp
+✅ Run health checks
+✅ Show verification commands
+
+⏱️  Estimated time: 5-7 minutes
+
+═══════════════════════════════════════════════════════════
+
+📋 WHAT'S BEING DEPLOYED
+
+✨ New Feature: Database Persistence for Forecasts & Optimizations
+
+Services Updated:
+• forecast-service  → Saves all forecasts to PostgreSQL
+• optimize-service  → Saves all optimizations to PostgreSQL
+• webapp            → Displays forecast/optimization history
+
+Database:
+• 6 new tables (2 TimescaleDB hypertables)
+• Already applied to omarino-postgres container
+
+═══════════════════════════════════════════════════════════
+
+✅ VERIFICATION
+
+After deployment, verify everything works:
+
+1. Check services are running:
+   docker ps | grep omarino
+
+2. Test forecast API:
+   curl https://ems-back.omarino.net/api/forecast/forecasts | jq '.'
+
+3. Test optimization API:
+   curl https://ems-back.omarino.net/api/optimize/optimizations | jq '.'
+
+4. Open webapp:
+   https://ems-demo.omarino.net/forecasts
+   https://ems-demo.omarino.net/optimization
+
+5. Check database:
+   docker exec omarino-postgres psql -U omarino -d omarino \
+     -c "SELECT COUNT(*) FROM forecast_jobs;"
+
+═══════════════════════════════════════════════════════════
+
+🆘 TROUBLESHOOTING
+
+If something goes wrong:
+
+1. Check service logs:
+   docker logs omarino-forecast --tail 50
+   docker logs omarino-optimize --tail 50
+   docker logs omarino-webapp --tail 50
+
+2. Verify database connection:
+   docker logs omarino-forecast | grep database_connected
+   docker logs omarino-optimize | grep database_connected
+
+3. Check network:
+   docker network inspect ems_omarino-network
+
+4. Restart a service:
+   docker restart omarino-forecast
+   docker restart omarino-optimize
+   docker restart omarino-webapp
+
+═══════════════════════════════════════════════════════════
+
+📚 DETAILED DOCUMENTATION
+
+For more information, see:
+• DEPLOYMENT_GUIDE.md  → Full deployment guide
+• QUICK_REFERENCE.md   → Quick commands & API reference
+
+═══════════════════════════════════════════════════════════
+
+💡 KEY FEATURES AFTER DEPLOYMENT
+
+Forecast Page (https://ems-demo.omarino.net/forecasts):
+• View all saved forecasts
+• Click to see detailed forecast with chart
+• Shows forecast metrics (MAE, RMSE, MAPE)
+• Confidence intervals (5th and 95th percentile)
+• Auto-refresh every 10 seconds
+
+Optimization Page (https://ems-demo.omarino.net/optimization):
+• View all saved optimizations
+• Click to see detailed results
+• Battery schedule chart (SOC, charge, discharge)
+• Grid schedule chart (import, export)
+• Cost breakdown visualization
+• Auto-refresh every 10 seconds
+
+═══════════════════════════════════════════════════════════
+
+🔒 IMPORTANT NOTES
+
+• All services use non-blocking database saves
+• Services continue working even if database is unavailable
+• Old forecast/optimization behavior unchanged
+• New data automatically appears in UI
+• Database uses TimescaleDB for time-series optimization
+
+═══════════════════════════════════════════════════════════
+
+Ready to deploy? Run:
+    ssh omar@192.168.75.20
+    cd ~/OMARINO-EMS-Suite
+    git pull origin main
+    ./deploy-all.sh
+
+Good luck! 🎉

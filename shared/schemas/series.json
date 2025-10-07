@@ -1,0 +1,70 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://omarino.de/schemas/series.json",
+  "title": "Series",
+  "description": "Time series metadata linking to a meter",
+  "type": "object",
+  "required": ["id", "meter_id", "name", "unit", "aggregation"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique series identifier"
+    },
+    "meter_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Reference to parent meter"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "description": "Series name (e.g., 'active_power', 'temperature')"
+    },
+    "description": {
+      "type": "string",
+      "description": "Detailed description of the series"
+    },
+    "unit": {
+      "type": "string",
+      "description": "Unit of measurement",
+      "examples": ["kWh", "kW", "EUR/MWh", "°C", "%"]
+    },
+    "aggregation": {
+      "type": "string",
+      "enum": ["instant", "mean", "sum", "min", "max", "count"],
+      "description": "How values are aggregated within sampling interval"
+    },
+    "data_type": {
+      "type": "string",
+      "enum": ["measurement", "forecast", "schedule", "price", "weather"],
+      "default": "measurement",
+      "description": "Classification of the data"
+    },
+    "timezone": {
+      "type": "string",
+      "description": "IANA timezone (inherits from meter if not specified)"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "examples": [
+    {
+      "id": "660e8400-e29b-41d4-a716-446655440001",
+      "meter_id": "550e8400-e29b-41d4-a716-446655440000",
+      "name": "active_power",
+      "description": "Active power consumption in 15-minute intervals",
+      "unit": "kW",
+      "aggregation": "mean",
+      "data_type": "measurement",
+      "timezone": "Europe/Berlin"
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://omarino.de/schemas/time_series_point.json",
+  "title": "TimeSeriesPoint",
+  "description": "A single data point in a time series with quality metadata",
+  "type": "object",
+  "required": ["timestamp", "value", "series_id"],
+  "properties": {
+    "series_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier of the parent time series"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp in UTC (e.g., 2025-10-02T14:30:00Z)"
+    },
+    "value": {
+      "type": "number",
+      "description": "Measured or calculated value"
+    },
+    "unit": {
+      "type": "string",
+      "description": "Unit of measurement (e.g., kWh, MW, EUR/MWh)",
+      "examples": ["kWh", "MW", "MWh", "EUR/MWh", "°C", "%"]
+    },
+    "quality": {
+      "type": "string",
+      "enum": ["good", "uncertain", "bad", "estimated", "missing"],
+      "default": "good",
+      "description": "Data quality flag"
+    },
+    "source": {
+      "type": "string",
+      "description": "Source system or data provider",
+      "examples": ["SCADA", "smart_meter", "forecast_model", "manual_entry"]
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 1,
+      "description": "Version number for data lineage (incremented on updates)"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional context-specific metadata",
+      "additionalProperties": true
+    }
+  },
+  "examples": [
+    {
+      "series_id": "550e8400-e29b-41d4-a716-446655440000",
+      "timestamp": "2025-10-02T14:30:00Z",
+      "value": 125.5,
+      "unit": "kWh",
+      "quality": "good",
+      "source": "SCADA",
+      "version": 1
+    }
+  ]
+}

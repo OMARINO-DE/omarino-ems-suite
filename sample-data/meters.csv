@@ -1,0 +1,7 @@
+meter_id,name,location,type,unit,description
+meter-001,Building A Main Feed,Building A - Ground Floor,Electric,kW,Main electrical feed for Building A
+meter-002,Building A Solar,Building A - Rooftop,Solar,kW,Solar PV system on Building A roof
+meter-003,Building B HVAC,Building B - Mechanical Room,Electric,kW,HVAC system load for Building B
+meter-004,Battery Storage,Battery Room,Battery,kW,Battery energy storage system
+meter-005,Campus Chiller,Central Plant,Electric,kW,Central chiller plant
+meter-006,EV Charging Station,Parking Lot,Electric,kW,Level 2 EV charging stations

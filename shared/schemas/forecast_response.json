@@ -1,0 +1,127 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://omarino.de/schemas/forecast_response.json",
+  "title": "ForecastResponse",
+  "description": "Time series forecast with point predictions and quantiles",
+  "type": "object",
+  "required": ["forecast_id", "series_id", "model_used", "timestamps", "point_forecast"],
+  "properties": {
+    "forecast_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique forecast identifier"
+    },
+    "series_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "ID of the forecasted series"
+    },
+    "model_used": {
+      "type": "string",
+      "description": "Model that produced the forecast"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the forecast was generated"
+    },
+    "timestamps": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "description": "Forecast timestamps (ISO 8601 UTC)"
+    },
+    "point_forecast": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "description": "Point forecast values (median or mean)"
+    },
+    "quantiles": {
+      "type": "object",
+      "description": "Quantile forecasts keyed by quantile level",
+      "patternProperties": {
+        "^p\\d+$": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        }
+      },
+      "examples": [
+        {
+          "p10": [100.5, 102.3, 105.1],
+          "p50": [110.0, 112.5, 115.0],
+          "p90": [120.5, 123.0, 125.5]
+        }
+      ]
+    },
+    "metrics": {
+      "type": "object",
+      "description": "Forecast quality metrics (if backtesting was performed)",
+      "properties": {
+        "mae": {
+          "type": "number",
+          "description": "Mean Absolute Error"
+        },
+        "mape": {
+          "type": "number",
+          "description": "Mean Absolute Percentage Error"
+        },
+        "rmse": {
+          "type": "number",
+          "description": "Root Mean Squared Error"
+        },
+        "pinball_loss": {
+          "type": "number",
+          "description": "Pinball loss for quantile forecasts"
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional forecast metadata",
+      "properties": {
+        "training_samples": {
+          "type": "integer"
+        },
+        "training_time_seconds": {
+          "type": "number"
+        },
+        "feature_importance": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          }
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "forecast_id": "770e8400-e29b-41d4-a716-446655440002",
+      "series_id": "660e8400-e29b-41d4-a716-446655440001",
+      "model_used": "nhits",
+      "created_at": "2025-10-02T15:00:00Z",
+      "timestamps": [
+        "2025-10-02T15:15:00Z",
+        "2025-10-02T15:30:00Z",
+        "2025-10-02T15:45:00Z"
+      ],
+      "point_forecast": [110.0, 112.5, 115.0],
+      "quantiles": {
+        "p10": [100.5, 102.3, 105.1],
+        "p50": [110.0, 112.5, 115.0],
+        "p90": [120.5, 123.0, 125.5]
+      },
+      "metrics": {
+        "mae": 5.2,
+        "mape": 4.5,
+        "rmse": 6.8
+      }
+    }
+  ]
+}

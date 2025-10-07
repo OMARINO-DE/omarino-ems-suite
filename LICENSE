@@ -1,0 +1,41 @@
+Business Source License 1.1
+
+Parameters
+
+Licensor:             OMARINO IT Services, Inh. Omar Zaror  
+Licensor Contact:     omar@omarino.de  
+Licensed Work:        OMARINO EMS Suite  
+License Date:         2025-10-04  
+Change Date:          2029-10-04  
+Change License:       Apache License, Version 2.0
+
+Licensed Work: This repository and all its contents, including source code,
+documentation, and associated assets (collectively, the "Work").
+
+Additional Use Grant:
+You may make copies of the Work and modify it for personal, educational,
+research, evaluation, or non-production use without charge.
+
+Production Use Limitation:
+You may not use the Work for a production environment, commercial service,
+or any activity intended to produce revenue, directly or indirectly,
+without obtaining a commercial license from the Licensor.
+
+Commercial licenses and annual subscription plans are available from:
+https://www.omarino.de/ems-suite  or by contacting  omar@omarino.de.
+
+Change License:
+On the Change Date specified above, the Work will automatically be
+relicensed under the Change License (Apache License, Version 2.0).
+At that point, the Change License will apply to all copies of the Work.
+
+Notices:
+A copy of this license must be included with all copies of the Work.
+You must not remove or alter any copyright, trademark, or attribution notices
+from the source files, documentation, or user interfaces of the Work.
+
+THE LICENSED WORK IS PROVIDED "AS IS."  
+THE LICENSOR MAKES NO WARRANTIES OR CONDITIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.  
+USE OF THE WORK IS AT YOUR OWN RISK.
+
+For full license text, see: https://mariadb.com/bsl11/

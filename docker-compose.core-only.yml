@@ -1,0 +1,222 @@
+version: '3.8'
+
+# OMARINO-EMS Stack - Core Services Only (for troubleshooting)
+# Minimal version without observability stack
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: 192.168.61.21:32768/timescale/timescaledb:latest-pg14
+    container_name: omarino-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-omarino}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-omarino_dev_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-omarino}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-omarino}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - omarino-network
+    restart: unless-stopped
+
+  # Redis Cache
+  redis:
+    image: 192.168.61.21:32768/redis:7-alpine
+    container_name: omarino-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD:-omarino_redis_pass}
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - omarino-network
+    restart: unless-stopped
+
+  # Time Series Service
+  timeseries-service:
+    image: 192.168.61.21:32768/omarino-ems/timeseries-service:latest
+    container_name: omarino-timeseries
+    environment:
+      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Production}
+      - ASPNETCORE_URLS=http://+:5001
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=omarino_timeseries;Username=${POSTGRES_USER:-omarino};Password=${POSTGRES_PASSWORD:-omarino_dev_pass}
+      - Logging__LogLevel__Default=${LOG_LEVEL:-Information}
+    ports:
+      - "5001:5001"
+    depends_on:
+      - postgres
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - omarino-network
+    restart: unless-stopped
+
+  # Forecast Service
+  forecast-service:
+    image: 192.168.61.21:32768/omarino-ems/forecast-service:latest
+    container_name: omarino-forecast
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - TIMESERIES_SERVICE_URL=http://timeseries-service:5001
+    ports:
+      - "8001:8001"
+    depends_on:
+      - timeseries-service
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - omarino-network
+    restart: unless-stopped
+
+  # Optimize Service
+  optimize-service:
+    image: 192.168.61.21:32768/omarino-ems/optimize-service:latest
+    container_name: omarino-optimize
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-omarino_redis_pass}
+      - TIMESERIES_SERVICE_URL=http://timeseries-service:5001
+      - FORECAST_SERVICE_URL=http://forecast-service:8001
+    ports:
+      - "8002:8002"
+    depends_on:
+      - redis
+      - timeseries-service
+      - forecast-service
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - omarino-network
+    restart: unless-stopped
+
+  # Scheduler Service
+  scheduler-service:
+    image: 192.168.61.21:32768/omarino-ems/scheduler-service:latest
+    container_name: omarino-scheduler
+    environment:
+      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Production}
+      - ASPNETCORE_URLS=http://+:5003
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=omarino_scheduler;Username=${POSTGRES_USER:-omarino};Password=${POSTGRES_PASSWORD:-omarino_dev_pass}
+      - ConnectionStrings__QuartzConnection=Host=postgres;Port=5432;Database=omarino_scheduler;Username=${POSTGRES_USER:-omarino};Password=${POSTGRES_PASSWORD:-omarino_dev_pass}
+      - Services__TimeSeriesUrl=http://timeseries-service:5001
+      - Services__ForecastUrl=http://forecast-service:8001
+      - Services__OptimizeUrl=http://optimize-service:8002
+      - Logging__LogLevel__Default=${LOG_LEVEL:-Information}
+    ports:
+      - "5003:5003"
+    depends_on:
+      - postgres
+      - timeseries-service
+      - forecast-service
+      - optimize-service
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5003/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - omarino-network
+    restart: unless-stopped
+
+  # API Gateway
+  api-gateway:
+    image: 192.168.61.21:32768/omarino-ems/api-gateway:latest
+    container_name: omarino-gateway
+    environment:
+      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Production}
+      - ASPNETCORE_URLS=http://+:8080
+      - Authentication__SecretKey=${JWT_SECRET_KEY:-your-secret-key-change-in-production-min-32-chars}
+      - ReverseProxy__Clusters__timeseries-cluster__Destinations__destination1__Address=http://timeseries-service:5001
+      - ReverseProxy__Clusters__forecast-cluster__Destinations__destination1__Address=http://forecast-service:8001
+      - ReverseProxy__Clusters__optimize-cluster__Destinations__destination1__Address=http://optimize-service:8002
+      - ReverseProxy__Clusters__scheduler-cluster__Destinations__destination1__Address=http://scheduler-service:5003
+      - Redis__Configuration=redis:6379,password=${REDIS_PASSWORD:-omarino_redis_pass}
+      - Logging__LogLevel__Default=${LOG_LEVEL:-Information}
+    ports:
+      - "8081:8080"
+    depends_on:
+      - redis
+      - timeseries-service
+      - forecast-service
+      - optimize-service
+      - scheduler-service
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - omarino-network
+    restart: unless-stopped
+
+  # Web Application
+  webapp:
+    image: 192.168.61.21:32768/omarino-ems/webapp:latest
+    container_name: omarino-webapp
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://api-gateway:8080
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-change-this-secret-in-production}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api-gateway
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - omarino-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  omarino-network:
+    driver: bridge
+
+# Environment Variables:
+# - POSTGRES_USER=omarino
+# - POSTGRES_PASSWORD=your_secure_password
+# - POSTGRES_DB=omarino
+# - REDIS_PASSWORD=your_redis_password
+# - JWT_SECRET_KEY=your_jwt_secret_key_min_32_chars
+# - LOG_LEVEL=Information
+# - ASPNETCORE_ENVIRONMENT=Production
+# - ENVIRONMENT=production

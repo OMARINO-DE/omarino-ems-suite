@@ -1,0 +1,215 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://omarino.de/schemas/optimize_request.json",
+  "title": "OptimizeRequest",
+  "description": "Request for energy system optimization (dispatch, storage, procurement)",
+  "type": "object",
+  "required": ["optimization_type", "horizon", "granularity", "assets"],
+  "properties": {
+    "optimization_type": {
+      "type": "string",
+      "enum": ["storage_dispatch", "unit_commitment", "procurement", "vpp_dispatch"],
+      "description": "Type of optimization problem"
+    },
+    "horizon": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Number of time periods to optimize"
+    },
+    "granularity": {
+      "type": "string",
+      "description": "Time step granularity (ISO 8601 duration)",
+      "pattern": "^P(?:\\d+Y)?(?:\\d+M)?(?:\\d+D)?(?:T(?:\\d+H)?(?:\\d+M)?(?:\\d+(?:\\.\\d+)?S)?)?$",
+      "examples": ["PT15M", "PT1H"]
+    },
+    "start_time": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Start time for optimization window"
+    },
+    "assets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/definitions/Asset"
+      },
+      "description": "Assets to optimize (batteries, generators, flexible loads)"
+    },
+    "constraints": {
+      "$ref": "#/definitions/Constraints"
+    },
+    "prices": {
+      "type": "object",
+      "description": "Price signals",
+      "properties": {
+        "energy_prices": {
+          "type": "array",
+          "items": { "type": "number" },
+          "description": "Energy price per period (EUR/MWh)"
+        },
+        "imbalance_prices": {
+          "type": "array",
+          "items": { "type": "number" }
+        }
+      }
+    },
+    "forecasts": {
+      "type": "object",
+      "description": "Forecast inputs",
+      "properties": {
+        "load": {
+          "type": "array",
+          "items": { "type": "number" },
+          "description": "Load forecast (kW or MW)"
+        },
+        "pv_generation": {
+          "type": "array",
+          "items": { "type": "number" }
+        },
+        "wind_generation": {
+          "type": "array",
+          "items": { "type": "number" }
+        }
+      }
+    },
+    "objective": {
+      "type": "string",
+      "enum": ["minimize_cost", "maximize_revenue", "minimize_imbalance", "maximize_self_consumption"],
+      "default": "minimize_cost",
+      "description": "Optimization objective"
+    },
+    "solver": {
+      "type": "string",
+      "enum": ["highs", "cbc", "glpk", "gurobi", "cplex"],
+      "default": "highs",
+      "description": "Solver to use (gurobi/cplex require licenses)"
+    },
+    "solver_options": {
+      "type": "object",
+      "properties": {
+        "time_limit_seconds": {
+          "type": "number",
+          "default": 300
+        },
+        "mip_gap": {
+          "type": "number",
+          "default": 0.01,
+          "description": "MIP optimality gap (0.01 = 1%)"
+        }
+      }
+    }
+  },
+  "definitions": {
+    "Asset": {
+      "type": "object",
+      "required": ["id", "type"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Asset identifier"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["battery", "generator", "flexible_load", "chp", "electrolyzer"],
+          "description": "Asset type"
+        },
+        "power_capacity_kw": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Maximum power output/input (kW)"
+        },
+        "energy_capacity_kwh": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Energy capacity (kWh) - for storage"
+        },
+        "efficiency": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Round-trip efficiency (for storage)"
+        },
+        "initial_soc": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Initial state of charge (0-1)"
+        },
+        "final_soc_min": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Minimum final state of charge"
+        },
+        "ramp_rate_per_minute": {
+          "type": "number",
+          "description": "Maximum power change per minute (kW/min)"
+        },
+        "min_uptime_minutes": {
+          "type": "number",
+          "description": "Minimum uptime for generators"
+        },
+        "min_downtime_minutes": {
+          "type": "number",
+          "description": "Minimum downtime for generators"
+        },
+        "variable_cost": {
+          "type": "number",
+          "description": "Variable operating cost (EUR/kWh)"
+        }
+      }
+    },
+    "Constraints": {
+      "type": "object",
+      "properties": {
+        "grid_import_limit_kw": {
+          "type": "number",
+          "description": "Maximum grid import power (kW)"
+        },
+        "grid_export_limit_kw": {
+          "type": "number",
+          "description": "Maximum grid export power (kW)"
+        },
+        "reserve_requirement_kw": {
+          "type": "number",
+          "description": "Reserve capacity to maintain (kW)"
+        },
+        "co2_limit_kg": {
+          "type": "number",
+          "description": "CO2 emission limit"
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "optimization_type": "storage_dispatch",
+      "horizon": 96,
+      "granularity": "PT15M",
+      "start_time": "2025-10-03T00:00:00Z",
+      "assets": [
+        {
+          "id": "battery_001",
+          "type": "battery",
+          "power_capacity_kw": 500,
+          "energy_capacity_kwh": 2000,
+          "efficiency": 0.92,
+          "initial_soc": 0.5,
+          "final_soc_min": 0.2
+        }
+      ],
+      "constraints": {
+        "grid_import_limit_kw": 1000,
+        "grid_export_limit_kw": 500
+      },
+      "prices": {
+        "energy_prices": [50.0, 45.0, 40.0, 60.0]
+      },
+      "forecasts": {
+        "load": [300, 320, 310, 350]
+      },
+      "objective": "minimize_cost",
+      "solver": "highs"
+    }
+  ]
+}

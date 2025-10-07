@@ -1,0 +1,105 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://omarino.de/schemas/forecast_request.json",
+  "title": "ForecastRequest",
+  "description": "Request for time series forecasting",
+  "type": "object",
+  "required": ["series_id", "horizon", "granularity"],
+  "properties": {
+    "series_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "ID of the time series to forecast"
+    },
+    "horizon": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Number of periods to forecast"
+    },
+    "granularity": {
+      "type": "string",
+      "description": "Forecast granularity (ISO 8601 duration)",
+      "pattern": "^P(?:\\d+Y)?(?:\\d+M)?(?:\\d+D)?(?:T(?:\\d+H)?(?:\\d+M)?(?:\\d+(?:\\.\\d+)?S)?)?$",
+      "examples": ["PT15M", "PT1H", "P1D"]
+    },
+    "start_time": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Start time for forecast (defaults to now + 1 period)"
+    },
+    "model": {
+      "type": "string",
+      "enum": ["auto", "arima", "ets", "xgboost", "lightgbm", "nhits", "seasonal_naive", "last_value"],
+      "default": "auto",
+      "description": "Forecasting model to use"
+    },
+    "quantiles": {
+      "type": "array",
+      "items": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "default": [0.1, 0.5, 0.9],
+      "description": "Quantiles for probabilistic forecasting"
+    },
+    "external_features": {
+      "type": "object",
+      "description": "External regressors (e.g., weather, calendar features)",
+      "properties": {
+        "weather": {
+          "type": "object",
+          "properties": {
+            "temperature": {
+              "type": "array",
+              "items": { "type": "number" }
+            },
+            "humidity": {
+              "type": "array",
+              "items": { "type": "number" }
+            },
+            "irradiance": {
+              "type": "array",
+              "items": { "type": "number" }
+            }
+          }
+        },
+        "calendar": {
+          "type": "object",
+          "properties": {
+            "is_holiday": {
+              "type": "array",
+              "items": { "type": "boolean" }
+            },
+            "is_weekend": {
+              "type": "array",
+              "items": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    "training_window": {
+      "type": "integer",
+      "description": "Number of historical periods to use for training (null = all)",
+      "minimum": 1
+    },
+    "confidence_level": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.95,
+      "description": "Confidence level for prediction intervals"
+    }
+  },
+  "examples": [
+    {
+      "series_id": "660e8400-e29b-41d4-a716-446655440001",
+      "horizon": 96,
+      "granularity": "PT15M",
+      "model": "auto",
+      "quantiles": [0.1, 0.5, 0.9],
+      "training_window": 2016
+    }
+  ]
+}

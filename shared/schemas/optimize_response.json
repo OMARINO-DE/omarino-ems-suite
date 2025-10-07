@@ -1,0 +1,187 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://omarino.de/schemas/optimize_response.json",
+  "title": "OptimizeResponse",
+  "description": "Optimization results with schedule and solver statistics",
+  "type": "object",
+  "required": ["optimization_id", "status", "objective_value", "schedule"],
+  "properties": {
+    "optimization_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique optimization run identifier"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["optimal", "feasible", "infeasible", "unbounded", "error", "timeout"],
+      "description": "Solver termination status"
+    },
+    "objective_value": {
+      "type": "number",
+      "description": "Optimal objective value (e.g., total cost in EUR)"
+    },
+    "solve_time_seconds": {
+      "type": "number",
+      "description": "Time taken to solve the problem"
+    },
+    "schedule": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ScheduleInterval"
+      },
+      "description": "Optimized schedule per time interval"
+    },
+    "sensitivities": {
+      "type": "object",
+      "description": "Sensitivity analysis (shadow prices, reduced costs)",
+      "properties": {
+        "energy_price_sensitivity": {
+          "type": "array",
+          "items": { "type": "number" }
+        },
+        "constraint_shadow_prices": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        }
+      }
+    },
+    "solver_info": {
+      "type": "object",
+      "properties": {
+        "solver_name": {
+          "type": "string"
+        },
+        "iterations": {
+          "type": "integer"
+        },
+        "mip_gap": {
+          "type": "number"
+        },
+        "nodes_explored": {
+          "type": "integer"
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "description": "Key performance indicators",
+      "properties": {
+        "total_cost_eur": {
+          "type": "number"
+        },
+        "total_energy_kwh": {
+          "type": "number"
+        },
+        "peak_power_kw": {
+          "type": "number"
+        },
+        "self_consumption_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "co2_emissions_kg": {
+          "type": "number"
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Warnings or notes about the solution"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "definitions": {
+    "ScheduleInterval": {
+      "type": "object",
+      "required": ["timestamp"],
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "grid_import_kw": {
+          "type": "number",
+          "description": "Power imported from grid (kW)"
+        },
+        "grid_export_kw": {
+          "type": "number",
+          "description": "Power exported to grid (kW)"
+        },
+        "asset_schedules": {
+          "type": "object",
+          "description": "Power schedule per asset",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "power_kw": {
+                "type": "number"
+              },
+              "soc": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "State of charge (for storage)"
+              },
+              "status": {
+                "type": "string",
+                "enum": ["online", "offline", "standby"]
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "optimization_id": "880e8400-e29b-41d4-a716-446655440003",
+      "status": "optimal",
+      "objective_value": 1245.50,
+      "solve_time_seconds": 3.2,
+      "schedule": [
+        {
+          "timestamp": "2025-10-03T00:00:00Z",
+          "grid_import_kw": 250.0,
+          "grid_export_kw": 0.0,
+          "asset_schedules": {
+            "battery_001": {
+              "power_kw": -50.0,
+              "soc": 0.52,
+              "status": "online"
+            }
+          }
+        },
+        {
+          "timestamp": "2025-10-03T00:15:00Z",
+          "grid_import_kw": 200.0,
+          "grid_export_kw": 0.0,
+          "asset_schedules": {
+            "battery_001": {
+              "power_kw": 0.0,
+              "soc": 0.52,
+              "status": "standby"
+            }
+          }
+        }
+      ],
+      "metrics": {
+        "total_cost_eur": 1245.50,
+        "total_energy_kwh": 7200,
+        "peak_power_kw": 450,
+        "self_consumption_rate": 0.85
+      },
+      "solver_info": {
+        "solver_name": "HiGHS",
+        "iterations": 523,
+        "mip_gap": 0.005
+      }
+    }
+  ]
+}

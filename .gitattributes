@@ -1,0 +1,48 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Source code
+*.cs     text diff=csharp
+*.py     text diff=python
+*.js     text
+*.ts     text
+*.tsx    text
+*.jsx    text
+*.json   text
+*.xml    text
+*.html   text
+*.css    text
+*.scss   text
+*.sql    text
+
+# Documentation
+*.md     text
+*.txt    text
+*.adoc   text
+
+# Scripts
+*.sh     text eol=lf
+*.bash   text eol=lf
+*.ps1    text eol=crlf
+
+# Configuration
+*.config text
+*.yml    text
+*.yaml   text
+.editorconfig text
+.gitignore text
+.gitattributes text
+
+# Binary files
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.ico    binary
+*.pdf    binary
+*.zip    binary
+*.gz     binary
+*.dll    binary
+*.exe    binary
+*.so     binary
+*.dylib  binary

@@ -1,0 +1,89 @@
+site_name: OMARINO EMS Suite Documentation
+site_description: Energy Management and Energy Data Platform
+site_author: Omar Zaror
+repo_url: https://github.com/YOUR_USERNAME/omarino-ems-suite
+repo_name: omarino-ems-suite
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+
+plugins:
+  - search
+  - mermaid2
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:mermaid2.fence_mermaid
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - tables
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Quick Start: getting-started/quick-start.md
+    - Developer Setup: developer-setup.md
+    - E2E Runbook: runbook-e2e.md
+  - Architecture:
+    - Overview: architecture.md
+    - ADRs: adr/
+  - Services:
+    - API Gateway: services/api-gateway.md
+    - Time Series Service: services/timeseries-service.md
+    - Forecast Service: services/forecast-service.md
+    - Optimize Service: services/optimize-service.md
+    - Scheduler Service: services/scheduler-service.md
+    - Web App: services/webapp.md
+  - API Reference:
+    - Time Series API: apis/timeseries.md
+    - Forecast API: apis/forecast.md
+    - Optimize API: apis/optimize.md
+    - Scheduler API: apis/scheduler.md
+  - Operations:
+    - Deployment: operations.md
+    - Monitoring: operations/monitoring.md
+    - Security: security.md
+    - Troubleshooting: troubleshooting.md
+  - Development:
+    - Contributing: ../CONTRIBUTING.md
+    - Testing: development/testing.md
+    - CI/CD: development/cicd.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/YOUR_USERNAME/omarino-ems-suite

@@ -1,0 +1,223 @@
+╔═══════════════════════════════════════════════════════════╗
+║          BUILD & PUSH DOCKER IMAGES - INSTRUCTIONS        ║
+╚═══════════════════════════════════════════════════════════╝
+
+🐳 BUILD ALL IMAGES WITH LATEST FEATURES
+
+Since Docker is not running locally, build the images on your server:
+
+═══════════════════════════════════════════════════════════
+
+📋 QUICK STEPS
+
+1. Connect to server:
+   ssh omar@192.168.75.20
+
+2. Navigate to project:
+   cd ~/OMARINO-EMS-Suite
+
+3. Pull latest code:
+   git pull origin main
+
+4. Run build script:
+   ./build-and-push.sh
+
+⏱️  Estimated time: 10-15 minutes (building all images)
+
+═══════════════════════════════════════════════════════════
+
+🎯 WHAT WILL BE BUILT
+
+The script will build and push these images:
+
+✓ omarino-forecast:latest
+  - Database persistence for forecasts
+  - New GET /forecasts endpoints
+  - PostgreSQL/TimescaleDB integration
+  
+✓ omarino-optimize:latest
+  - Database persistence for optimizations
+  - New GET /optimizations endpoints
+  - Saves jobs, assets, results, costs
+  
+✓ omarino-webapp:latest
+  - Forecast history page with charts
+  - Optimization history page with charts
+  - Auto-refresh every 10 seconds
+  - Beautiful detail modals
+
+Plus any other services (gateway, timeseries)
+
+═══════════════════════════════════════════════════════════
+
+📦 IMAGES WILL BE TAGGED
+
+Each image gets TWO tags:
+
+1. latest          → Always points to newest version
+2. YYYYMMDD-HHMMSS → Timestamp for rollback
+
+Example:
+  192.168.61.21:32768/omarino-forecast:latest
+  192.168.61.21:32768/omarino-forecast:20251007-143022
+
+This allows easy rollback if needed!
+
+═══════════════════════════════════════════════════════════
+
+🚀 AFTER BUILDING
+
+Option 1 - Deploy immediately:
+   ./deploy-all.sh
+
+Option 2 - Deploy individual services:
+   ./deploy-forecast-service.sh
+   ./deploy-optimize-service.sh
+   # Then webapp manually
+
+Option 3 - Manual deployment:
+   docker pull 192.168.61.21:32768/omarino-forecast:latest
+   docker stop omarino-forecast && docker rm omarino-forecast
+   docker run -d --name omarino-forecast \
+     --network ems_omarino-network \
+     -p 8082:8082 \
+     -e DATABASE_URL="postgresql://omarino:omarino@omarino-postgres:5432/omarino" \
+     --restart unless-stopped \
+     192.168.61.21:32768/omarino-forecast:latest
+
+═══════════════════════════════════════════════════════════
+
+✅ VERIFICATION
+
+After building, verify images exist:
+
+  docker images | grep omarino
+
+You should see:
+  192.168.61.21:32768/omarino-forecast    latest
+  192.168.61.21:32768/omarino-optimize    latest
+  192.168.61.21:32768/omarino-webapp      latest
+
+Check image details:
+  docker inspect 192.168.61.21:32768/omarino-forecast:latest
+
+═══════════════════════════════════════════════════════════
+
+🔄 ROLLBACK (If Needed)
+
+If the new version has issues, rollback to previous:
+
+1. List available tags:
+   curl -X GET http://192.168.61.21:32768/v2/omarino-forecast/tags/list
+
+2. Pull specific version:
+   docker pull 192.168.61.21:32768/omarino-forecast:20251007-120000
+
+3. Deploy old version:
+   docker stop omarino-forecast && docker rm omarino-forecast
+   docker run -d --name omarino-forecast ... \
+     192.168.61.21:32768/omarino-forecast:20251007-120000
+
+═══════════════════════════════════════════════════════════
+
+⚡ MANUAL BUILD (Alternative)
+
+If the script doesn't work, build manually:
+
+# Forecast Service
+cd ~/OMARINO-EMS-Suite/forecast-service
+docker build -t 192.168.61.21:32768/omarino-forecast:latest .
+docker push 192.168.61.21:32768/omarino-forecast:latest
+
+# Optimize Service
+cd ~/OMARINO-EMS-Suite/optimize-service
+docker build -t 192.168.61.21:32768/omarino-optimize:latest .
+docker push 192.168.61.21:32768/omarino-optimize:latest
+
+# Webapp
+cd ~/OMARINO-EMS-Suite/webapp
+docker build -t 192.168.61.21:32768/omarino-webapp:latest .
+docker push 192.168.61.21:32768/omarino-webapp:latest
+
+═══════════════════════════════════════════════════════════
+
+🆘 TROUBLESHOOTING
+
+Build fails with "no space left":
+  docker system prune -a
+  docker volume prune
+
+Push fails with "connection refused":
+  # Check registry is running
+  curl http://192.168.61.21:32768/v2/_catalog
+
+Build is very slow:
+  # Use BuildKit for faster builds
+  export DOCKER_BUILDKIT=1
+  docker build ...
+
+Can't connect to registry:
+  # Check network connectivity
+  ping 192.168.61.21
+
+═══════════════════════════════════════════════════════════
+
+💡 NEW FEATURES IN THESE IMAGES
+
+Database Persistence:
+✓ All forecasts saved to PostgreSQL
+✓ All optimizations saved to PostgreSQL
+✓ TimescaleDB hypertables for time-series data
+✓ Non-blocking saves (fast response times)
+
+New API Endpoints:
+✓ GET /api/forecast/forecasts
+✓ GET /api/forecast/forecasts/{id}
+✓ GET /api/optimize/optimizations
+✓ GET /api/optimize/optimizations/{id}
+
+Webapp UI:
+✓ Forecast history list with metrics
+✓ Optimization history list with costs
+✓ Detailed modal views with charts
+✓ Auto-refresh every 10 seconds
+✓ Confidence interval visualization
+✓ Battery/grid schedule charts
+✓ Cost breakdown bar charts
+
+═══════════════════════════════════════════════════════════
+
+🎯 COMPLETE WORKFLOW
+
+Full workflow from code to deployment:
+
+1. Code is already pushed to GitHub ✓
+
+2. On server:
+   ssh omar@192.168.75.20
+   cd ~/OMARINO-EMS-Suite
+   git pull origin main
+
+3. Build images:
+   ./build-and-push.sh
+
+4. Deploy services:
+   ./deploy-all.sh
+
+5. Verify:
+   Open https://ems-demo.omarino.net/forecasts
+   Open https://ems-demo.omarino.net/optimization
+
+Done! 🎉
+
+═══════════════════════════════════════════════════════════
+
+Ready to build? Run on your server:
+
+    ssh omar@192.168.75.20
+    cd ~/OMARINO-EMS-Suite
+    git pull origin main
+    ./build-and-push.sh
+
+Then deploy with:
+    ./deploy-all.sh

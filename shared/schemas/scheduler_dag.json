@@ -1,0 +1,205 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://omarino.de/schemas/scheduler_dag.json",
+  "title": "SchedulerDAG",
+  "description": "Directed Acyclic Graph definition for workflow orchestration",
+  "type": "object",
+  "required": ["name", "tasks", "triggers"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "description": "DAG name (unique identifier)"
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable DAG description"
+    },
+    "version": {
+      "type": "string",
+      "default": "1.0",
+      "description": "DAG version for change management"
+    },
+    "tasks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/definitions/Task"
+      },
+      "description": "List of tasks in the DAG"
+    },
+    "triggers": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/definitions/Trigger"
+      },
+      "description": "Triggers that start the DAG"
+    },
+    "default_retry_policy": {
+      "$ref": "#/definitions/RetryPolicy"
+    },
+    "timeout_minutes": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Global DAG timeout"
+    },
+    "tags": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    }
+  },
+  "definitions": {
+    "Task": {
+      "type": "object",
+      "required": ["id", "type"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique task identifier within DAG"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["http_call", "delay", "condition", "map", "foreach_series"],
+          "description": "Task type"
+        },
+        "depends_on": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Task IDs this task depends on"
+        },
+        "config": {
+          "type": "object",
+          "description": "Task-specific configuration"
+        },
+        "retry_policy": {
+          "$ref": "#/definitions/RetryPolicy"
+        },
+        "timeout_minutes": {
+          "type": "integer"
+        }
+      }
+    },
+    "Trigger": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["cron", "interval", "webhook"],
+          "description": "Trigger type"
+        },
+        "config": {
+          "type": "object",
+          "description": "Trigger-specific configuration",
+          "oneOf": [
+            {
+              "properties": {
+                "cron_expression": {
+                  "type": "string",
+                  "description": "Cron expression (e.g., '0 */15 * * *')"
+                }
+              }
+            },
+            {
+              "properties": {
+                "interval_minutes": {
+                  "type": "integer"
+                }
+              }
+            },
+            {
+              "properties": {
+                "webhook_path": {
+                  "type": "string"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "RetryPolicy": {
+      "type": "object",
+      "properties": {
+        "max_attempts": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 3
+        },
+        "backoff_seconds": {
+          "type": "integer",
+          "default": 60
+        },
+        "backoff_multiplier": {
+          "type": "number",
+          "default": 2.0
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "name": "daily_forecast_and_optimize",
+      "description": "Daily workflow: import data, forecast load, optimize dispatch",
+      "version": "1.0",
+      "triggers": [
+        {
+          "type": "cron",
+          "config": {
+            "cron_expression": "0 0 * * *"
+          }
+        }
+      ],
+      "tasks": [
+        {
+          "id": "import_meter_data",
+          "type": "http_call",
+          "config": {
+            "method": "POST",
+            "url": "http://timeseries-service:5001/api/ingest",
+            "body": {
+              "source": "file:///samples/meters.csv"
+            }
+          }
+        },
+        {
+          "id": "forecast_load",
+          "type": "http_call",
+          "depends_on": ["import_meter_data"],
+          "config": {
+            "method": "POST",
+            "url": "http://forecast-service:8001/api/forecast",
+            "body": {
+              "series_id": "{{meter_series_id}}",
+              "horizon": 96,
+              "granularity": "PT15M"
+            }
+          }
+        },
+        {
+          "id": "optimize_dispatch",
+          "type": "http_call",
+          "depends_on": ["forecast_load"],
+          "config": {
+            "method": "POST",
+            "url": "http://optimize-service:8002/api/optimize",
+            "body": {
+              "optimization_type": "storage_dispatch",
+              "horizon": 96,
+              "forecasts": {
+                "load": "{{forecast_load.response.point_forecast}}"
+              }
+            }
+          }
+        }
+      ],
+      "default_retry_policy": {
+        "max_attempts": 3,
+        "backoff_seconds": 60
+      },
+      "timeout_minutes": 30
+    }
+  ]
+}

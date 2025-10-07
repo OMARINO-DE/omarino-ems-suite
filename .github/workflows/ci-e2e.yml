@@ -1,0 +1,109 @@
+name: CI - End-to-End Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    # Run E2E tests daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  e2e-tests:
+    name: End-to-End Test Suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create .env file
+        run: |
+          cp .env.example .env
+          # Use test credentials
+          sed -i 's/POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=test_password/' .env
+          sed -i 's/REDIS_PASSWORD=.*/REDIS_PASSWORD=test_redis_password/' .env
+          sed -i 's/JWT_SECRET_KEY=.*/JWT_SECRET_KEY=test_jwt_secret_key_32_chars_long_minimum/' .env
+
+      - name: Start services with Docker Compose
+        run: |
+          docker-compose up -d
+          echo "Waiting for services to be healthy..."
+          sleep 30
+
+      - name: Wait for services
+        run: |
+          chmod +x scripts/e2e-test.sh
+          # Wait up to 3 minutes for all services to be ready
+          for i in {1..30}; do
+            if curl -sf http://localhost:8080/health > /dev/null 2>&1; then
+              echo "Services are ready!"
+              break
+            fi
+            echo "Waiting for services... ($i/30)"
+            sleep 6
+          done
+
+      - name: Check service health
+        run: |
+          echo "Checking API Gateway..."
+          curl -f http://localhost:8080/health | jq
+          echo "Checking Time Series Service..."
+          curl -f http://localhost:5001/health | jq
+          echo "Checking Forecast Service..."
+          curl -f http://localhost:8001/health | jq
+          echo "Checking Optimize Service..."
+          curl -f http://localhost:8002/health | jq
+          echo "Checking Scheduler Service..."
+          curl -f http://localhost:5003/health | jq
+
+      - name: Setup Python for data import
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Import sample data
+        run: |
+          pip install requests
+          chmod +x scripts/import-sample-data.py
+          python scripts/import-sample-data.py
+
+      - name: Run E2E test suite
+        run: |
+          ./scripts/e2e-test.sh
+
+      - name: Collect service logs on failure
+        if: failure()
+        run: |
+          echo "=== API Gateway Logs ==="
+          docker-compose logs api-gateway
+          echo "=== Time Series Service Logs ==="
+          docker-compose logs timeseries-service
+          echo "=== Forecast Service Logs ==="
+          docker-compose logs forecast-service
+          echo "=== Optimize Service Logs ==="
+          docker-compose logs optimize-service
+          echo "=== Scheduler Service Logs ==="
+          docker-compose logs scheduler-service
+          echo "=== PostgreSQL Logs ==="
+          docker-compose logs postgres
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: e2e-test-results
+          path: |
+            ./test-results/
+            ./coverage/
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker-compose down -v

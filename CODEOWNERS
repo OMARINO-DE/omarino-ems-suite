@@ -1,0 +1,45 @@
+# CODEOWNERS file for OMARINO EMS Suite
+# These owners will be requested for review when someone opens a pull request.
+
+# Global owners (catch-all)
+* @YOUR_USERNAME
+
+# Documentation
+/docs/ @YOUR_USERNAME
+*.md @YOUR_USERNAME
+
+# Infrastructure and DevOps
+/.github/ @YOUR_USERNAME
+/.devcontainer/ @YOUR_USERNAME
+/infra/ @YOUR_USERNAME
+docker-compose*.yml @YOUR_USERNAME
+Dockerfile @YOUR_USERNAME
+Makefile @YOUR_USERNAME
+
+# API Gateway
+/api-gateway/ @YOUR_USERNAME
+
+# Time Series Service
+/timeseries-service/ @YOUR_USERNAME
+
+# Forecast Service
+/forecast-service/ @YOUR_USERNAME
+
+# Optimize Service
+/optimize-service/ @YOUR_USERNAME
+
+# Scheduler Service
+/scheduler-service/ @YOUR_USERNAME
+
+# Web Application
+/webapp/ @YOUR_USERNAME
+
+# Shared schemas and contracts
+/shared/ @YOUR_USERNAME
+
+# Sample data and configurations
+/samples/ @YOUR_USERNAME
+
+# Security and compliance
+SECURITY.md @YOUR_USERNAME
+.env.example @YOUR_USERNAME
