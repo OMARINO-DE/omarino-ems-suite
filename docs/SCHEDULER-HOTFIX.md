@@ -20,6 +20,15 @@ const getApiUrl = () => {
   return 'https://ems-back.omarino.net';
 };
 
+// Task type enum mapping (string to int)
+const TaskTypeMap = {
+  'HttpCall': 0,
+  'Delay': 1,
+  'Condition': 2,
+  'Transform': 3,
+  'Notification': 4
+};
+
 // Override the fetch function to fix workflow creation
 const originalFetch = window.fetch;
 window.fetch = function(...args) {
@@ -29,6 +38,23 @@ window.fetch = function(...args) {
   if (url === 'http://localhost:8080/api/workflows') {
     url = `${getApiUrl()}/api/scheduler/workflows`;
     console.log('✅ Fixed workflow URL:', url);
+  }
+  
+  // Fix task type format (string to enum int)
+  if (url?.includes('/api/scheduler/workflows') && options?.method === 'POST') {
+    try {
+      const body = JSON.parse(options.body);
+      if (body.tasks) {
+        body.tasks = body.tasks.map(task => ({
+          ...task,
+          type: TaskTypeMap[task.type] ?? task.type  // Convert string to int
+        }));
+        options.body = JSON.stringify(body);
+        console.log('✅ Fixed workflow payload:', body);
+      }
+    } catch(e) {
+      console.error('Error fixing workflow payload:', e);
+    }
   }
   
   return originalFetch.call(this, url, options);

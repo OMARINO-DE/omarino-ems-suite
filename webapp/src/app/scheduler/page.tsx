@@ -167,7 +167,7 @@ function NewWorkflowModal({
           {
             id: crypto.randomUUID(),
             name: 'Example Task',
-            type: 'HttpCall',
+            type: 0,  // TaskType.HttpCall = 0
             dependsOn: [],
             config: {
               method: 'GET',
@@ -177,7 +177,7 @@ function NewWorkflowModal({
           }
         ],
         schedule: scheduleType === 'cron' ? {
-          type: 'Cron',
+          type: 0,  // ScheduleType.Cron = 0
           cronExpression: cronExpression,
           timeZone: timezone
         } : null
