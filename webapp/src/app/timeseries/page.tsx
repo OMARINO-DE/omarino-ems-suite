@@ -128,7 +128,11 @@ export default function TimeSeriesPage() {
             seriesId: seriesId,
             timestamp: row.timestamp,
             value: parseFloat(row.value),
-            quality: 100
+            unit: row.unit || null,  // Optional
+            quality: 'Good',  // DataQuality enum: Good, Uncertain, Bad, Estimated, Missing
+            source: file.name,  // Optional: source of the data
+            version: 1,  // Required: version for conflict resolution
+            metadata: null  // Optional: additional metadata
           })
         }
       }

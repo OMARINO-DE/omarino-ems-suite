@@ -1,0 +1,16 @@
+name,type,latitude,longitude,address,siteId,samplingInterval,timezone
+TEST_Building_A_Main,Electricity,,,Building A,,900,Europe/Berlin
+TEST_Building_A_HVAC,Electricity,,,Building A - HVAC Room,,900,Europe/Berlin
+TEST_Building_A_Lighting,Electricity,,,Building A - Lighting,,900,Europe/Berlin
+TEST_Building_B_Main,Electricity,,,Building B,,900,Europe/Berlin
+TEST_Building_B_HVAC,Electricity,,,Building B - HVAC Room,,900,Europe/Berlin
+TEST_Solar_Array_1,Electricity,,,Roof - Building A,,300,Europe/Berlin
+TEST_Solar_Array_2,Electricity,,,Roof - Building B,,300,Europe/Berlin
+TEST_Battery_Storage,Electricity,,,Building A - Storage Room,,300,Europe/Berlin
+TEST_Gas_Meter_A,Gas,,,Building A - Gas Line,,900,Europe/Berlin
+TEST_Gas_Meter_B,Gas,,,Building B - Gas Line,,900,Europe/Berlin
+TEST_Water_Meter_A,Water,,,Building A - Water Main,,900,Europe/Berlin
+TEST_Water_Meter_B,Water,,,Building B - Water Main,,900,Europe/Berlin
+TEST_Temp_Outdoor,Heat,,,Outdoor - North Side,,900,Europe/Berlin
+TEST_Temp_Building_A,Heat,,,Building A - Average,,900,Europe/Berlin
+TEST_Temp_Building_B,Heat,,,Building B - Average,,900,Europe/Berlin
