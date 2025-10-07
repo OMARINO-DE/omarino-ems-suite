@@ -183,20 +183,14 @@ function NewWorkflowModal({
         } : null
       }
 
-      const response = await fetch('http://localhost:8080/api/workflows', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(workflow),
-      })
-
-      if (response.ok) {
+      try {
+        await api.scheduler.createWorkflow(workflow)
         alert('Workflow created successfully!')
         onSuccess()
-      } else {
-        const error = await response.json()
-        alert(`Failed to create workflow: ${error.message || JSON.stringify(error)}`)
+      } catch (error: any) {
+        const errorMessage = error.response?.data?.message || error.message || 'Unknown error'
+        alert(`Failed to create workflow: ${errorMessage}`)
+        console.error('Workflow creation error:', error)
       }
     } catch (error) {
       console.error('Workflow creation error:', error)
