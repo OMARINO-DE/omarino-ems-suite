@@ -10,14 +10,10 @@ CREATE TABLE IF NOT EXISTS "WorkflowDefinitions" (
     "Tasks" jsonb NOT NULL,
     "Schedule" jsonb,
     "Tags" jsonb,
-    "RetryPolicy_MaxRetries" int,
-    "RetryPolicy_RetryDelay" interval,
-    "Timeout" interval NOT NULL DEFAULT '00:30:00',
+    "MaxExecutionTime" interval NOT NULL DEFAULT '01:00:00',
+    "MaxRetries" int NOT NULL DEFAULT 3,
     "CreatedAt" timestamp with time zone NOT NULL DEFAULT now(),
-    "UpdatedAt" timestamp with time zone NOT NULL DEFAULT now(),
-    "CreatedBy" varchar(100),
-    "LastModifiedBy" varchar(100),
-    "Version" int NOT NULL DEFAULT 1
+    "UpdatedAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS "IX_WorkflowDefinitions_Name" ON "WorkflowDefinitions" ("Name");
