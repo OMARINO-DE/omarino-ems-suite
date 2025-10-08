@@ -84,6 +84,7 @@ public class WorkflowEngine : IWorkflowEngine
             var bgWorkflow = await bgContext.WorkflowDefinitions
                 .FirstOrDefaultAsync(w => w.Id == workflowId);
             var bgExecution = await bgContext.WorkflowExecutions
+                .Include(e => e.TaskExecutions)
                 .FirstOrDefaultAsync(e => e.Id == executionId);
             
             if (bgWorkflow == null || bgExecution == null)
