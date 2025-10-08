@@ -349,10 +349,48 @@ public class WorkflowExecutor : IWorkflowExecutor
             ["mip_gap"] = GetConfig("mip_gap", 0.01)
         };
 
-        // Add assets if provided
+        // Add assets if provided, otherwise use default demo assets for battery_dispatch
         if (task.Config.ContainsKey("assets"))
         {
             requestBody["assets"] = task.Config["assets"];
+        }
+        else if (optimizationType == "battery_dispatch")
+        {
+            // Provide minimal default assets for demonstration
+            _logger.LogInformation("Using default demo assets for battery_dispatch optimization");
+            requestBody["assets"] = new[]
+            {
+                new
+                {
+                    asset_id = "demo-battery-1",
+                    asset_type = "battery",
+                    name = "Demo Battery Storage",
+                    battery = new
+                    {
+                        capacity_kwh = 100.0,
+                        max_charge_kw = 50.0,
+                        max_discharge_kw = 50.0,
+                        efficiency = 0.95,
+                        initial_soc = 0.5,
+                        min_soc = 0.1,
+                        max_soc = 0.9,
+                        degradation_cost_per_kwh = 0.01
+                    }
+                },
+                new
+                {
+                    asset_id = "demo-grid-1",
+                    asset_type = "grid_connection",
+                    name = "Demo Grid Connection",
+                    grid = new
+                    {
+                        max_import_kw = 100.0,
+                        max_export_kw = 50.0,
+                        import_enabled = true,
+                        export_enabled = true
+                    }
+                }
+            };
         }
 
         // Add prices if provided
