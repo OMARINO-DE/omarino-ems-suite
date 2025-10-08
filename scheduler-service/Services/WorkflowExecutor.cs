@@ -391,9 +391,59 @@ public class WorkflowExecutor : IWorkflowExecutor
                     }
                 }
             };
+            
+            // Add default time series for demo (24 hours, hourly intervals)
+            var now = DateTime.UtcNow;
+            var timestamps = new List<string>();
+            var importPrices = new List<double>();
+            var exportPrices = new List<double>();
+            var loadForecast = new List<double>();
+            
+            for (int i = 0; i < 24; i++)
+            {
+                timestamps.Add(now.AddHours(i).ToString("yyyy-MM-ddTHH:00:00Z"));
+                // Time-of-use pricing: higher during peak hours (8am-8pm)
+                importPrices.Add(i >= 8 && i < 20 ? 0.18 : 0.12);
+                exportPrices.Add(i >= 8 && i < 20 ? 0.10 : 0.06);
+                // Load profile: higher during day, lower at night
+                loadForecast.Add(i >= 6 && i < 22 ? 35.0 + (i % 4) * 5.0 : 15.0 + (i % 4) * 2.0);
+            }
+            
+            requestBody["start_time"] = timestamps[0];
+            requestBody["end_time"] = now.AddHours(24).ToString("yyyy-MM-ddTHH:00:00Z");
+            requestBody["time_step_minutes"] = 60;
+            
+            requestBody["import_prices"] = new Dictionary<string, object>
+            {
+                ["timestamps"] = timestamps,
+                ["values"] = importPrices
+            };
+            
+            requestBody["export_prices"] = new Dictionary<string, object>
+            {
+                ["timestamps"] = timestamps,
+                ["values"] = exportPrices
+            };
+            
+            requestBody["load_forecast"] = new Dictionary<string, object>
+            {
+                ["timestamps"] = timestamps,
+                ["values"] = loadForecast
+            };
+            
+            _logger.LogInformation("Using default demo time series (24 hours, {PriceCount} price points, {LoadCount} load points)",
+                importPrices.Count, loadForecast.Count);
         }
 
-        // Add prices if provided
+        // Override with custom values if provided in config
+        if (task.Config.ContainsKey("start_time"))
+        {
+            requestBody["start_time"] = task.Config["start_time"];
+        }
+        if (task.Config.ContainsKey("end_time"))
+        {
+            requestBody["end_time"] = task.Config["end_time"];
+        }
         if (task.Config.ContainsKey("import_prices"))
         {
             requestBody["import_prices"] = task.Config["import_prices"];
