@@ -243,10 +243,28 @@ public class WorkflowExecutor : IWorkflowExecutor
 
     private async Task<object?> ExecuteForecastAsync(WorkflowTask task, CancellationToken cancellationToken)
     {
-        var seriesId = task.Config.GetValueOrDefault("series_id", "").ToString();
-        var horizon = Convert.ToInt32(task.Config.GetValueOrDefault("horizon", 24));
-        var model = task.Config.GetValueOrDefault("model", "auto").ToString();
-        var granularity = task.Config.GetValueOrDefault("granularity", "hourly").ToString();
+        // Helper to safely get string value from config (handles JsonElement)
+        string GetConfigString(string key, string defaultValue = "")
+        {
+            if (!task.Config.TryGetValue(key, out var value)) return defaultValue;
+            if (value is JsonElement jsonElement) return jsonElement.GetString() ?? defaultValue;
+            return value?.ToString() ?? defaultValue;
+        }
+        
+        // Helper to safely get int value from config (handles JsonElement)
+        int GetConfigInt(string key, int defaultValue = 0)
+        {
+            if (!task.Config.TryGetValue(key, out var value)) return defaultValue;
+            if (value is JsonElement jsonElement && jsonElement.ValueKind == JsonValueKind.Number) 
+                return jsonElement.GetInt32();
+            if (int.TryParse(value?.ToString(), out var intValue)) return intValue;
+            return defaultValue;
+        }
+        
+        var seriesId = GetConfigString("series_id");
+        var horizon = GetConfigInt("horizon", 24);
+        var model = GetConfigString("model", "auto");
+        var granularity = GetConfigString("granularity", "hourly");
 
         if (string.IsNullOrEmpty(seriesId))
         {
@@ -290,7 +308,28 @@ public class WorkflowExecutor : IWorkflowExecutor
 
     private async Task<object?> ExecuteOptimizationAsync(WorkflowTask task, CancellationToken cancellationToken)
     {
-        var optimizationType = task.Config.GetValueOrDefault("optimization_type", "battery_dispatch").ToString();
+        // Helper to safely get value from config (handles JsonElement)
+        T GetConfig<T>(string key, T defaultValue)
+        {
+            if (!task.Config.TryGetValue(key, out var value)) return defaultValue;
+            
+            if (value is JsonElement jsonElement)
+            {
+                if (typeof(T) == typeof(string))
+                    return (T)(object)(jsonElement.GetString() ?? defaultValue?.ToString() ?? "");
+                if (typeof(T) == typeof(int))
+                    return (T)(object)jsonElement.GetInt32();
+                if (typeof(T) == typeof(double))
+                    return (T)(object)jsonElement.GetDouble();
+            }
+            
+            if (value is T typedValue) return typedValue;
+            if (typeof(T) == typeof(string)) return (T)(object)(value?.ToString() ?? "");
+            
+            return defaultValue;
+        }
+        
+        var optimizationType = GetConfig("optimization_type", "battery_dispatch");
         
         if (string.IsNullOrEmpty(optimizationType))
         {
@@ -301,13 +340,13 @@ public class WorkflowExecutor : IWorkflowExecutor
         var requestBody = new Dictionary<string, object>
         {
             ["optimization_type"] = optimizationType,
-            ["objective"] = task.Config.GetValueOrDefault("objective", "minimize_cost"),
-            ["start_time"] = task.Config.GetValueOrDefault("start_time", DateTime.UtcNow.ToString("o"))!,
-            ["end_time"] = task.Config.GetValueOrDefault("end_time", DateTime.UtcNow.AddHours(24).ToString("o"))!,
-            ["time_step_minutes"] = Convert.ToInt32(task.Config.GetValueOrDefault("time_step_minutes", 15)),
-            ["solver"] = task.Config.GetValueOrDefault("solver", "cbc"),
-            ["time_limit_seconds"] = Convert.ToInt32(task.Config.GetValueOrDefault("time_limit_seconds", 300)),
-            ["mip_gap"] = Convert.ToDouble(task.Config.GetValueOrDefault("mip_gap", 0.01))
+            ["objective"] = GetConfig("objective", "minimize_cost"),
+            ["start_time"] = GetConfig("start_time", DateTime.UtcNow.ToString("o")),
+            ["end_time"] = GetConfig("end_time", DateTime.UtcNow.AddHours(24).ToString("o")),
+            ["time_step_minutes"] = GetConfig("time_step_minutes", 15),
+            ["solver"] = GetConfig("solver", "cbc"),
+            ["time_limit_seconds"] = GetConfig("time_limit_seconds", 300),
+            ["mip_gap"] = GetConfig("mip_gap", 0.01)
         };
 
         // Add assets if provided
