@@ -130,36 +130,34 @@ async def create_battery(
     try:
         # Create the base asset first
         from uuid import uuid4
+        from app.models import AssetCreate, AssetType
 
         asset_id = uuid4()
+        
+        # Create AssetCreate object from battery_data
+        asset_create = AssetCreate(
+            name=battery_data.name,
+            description=battery_data.description,
+            location=battery_data.location,
+            site_id=battery_data.site_id,
+            manufacturer=battery_data.manufacturer,
+            model=battery_data.model,
+            serial_number=battery_data.serial_number,
+            installation_date=battery_data.installation_date,
+            asset_type=AssetType.BATTERY,
+            metadata=battery_data.metadata
+        )
 
         await db.create_asset(
             asset_id=asset_id,
-            site_id=battery_data.site_id,
-            name=battery_data.name,
-            asset_type="battery",
-            description=battery_data.description,
-            manufacturer=battery_data.manufacturer,
-            model_number=battery_data.model,
-            serial_number=battery_data.serial_number,
-            installation_date=battery_data.installation_date,
-            metadata=battery_data.metadata,
+            asset_data=asset_create,
+            created_by=None
         )
 
         # Create the battery specifications
         await db.create_battery_spec(
             asset_id=asset_id,
-            chemistry=battery_data.chemistry,
-            capacity=battery_data.capacity,
-            usable_capacity=battery_data.usable_capacity,
-            voltage=battery_data.voltage,
-            max_charge_rate=battery_data.max_charge_rate,
-            max_discharge_rate=battery_data.max_discharge_rate,
-            efficiency=battery_data.efficiency,
-            cycle_life=battery_data.cycle_life,
-            depth_of_discharge=battery_data.depth_of_discharge,
-            min_soc=battery_data.min_soc,
-            max_soc=battery_data.max_soc,
+            spec=battery_data.battery
         )
 
         # Retrieve the complete battery asset
@@ -174,8 +172,8 @@ async def create_battery(
             "battery_created",
             asset_id=str(asset_id),
             name=battery_data.name,
-            chemistry=battery_data.chemistry,
-            capacity=battery_data.capacity,
+            chemistry=battery_data.battery.chemistry.value if battery_data.battery.chemistry else None,
+            capacity=battery_data.battery.capacity_kwh,
         )
 
         return battery
