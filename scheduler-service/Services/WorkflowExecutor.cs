@@ -424,7 +424,7 @@ public class WorkflowExecutor : IWorkflowExecutor
         }
 
         var client = _httpClientFactory.CreateClient();
-        var request = new HttpRequestMessage(HttpMethod.Post, "http://optimize-service:8002/api/optimize/optimize");
+        var request = new HttpRequestMessage(HttpMethod.Post, "http://optimize-service:8002/api/optimize");
 
         request.Content = new StringContent(
             JsonSerializer.Serialize(requestBody),
