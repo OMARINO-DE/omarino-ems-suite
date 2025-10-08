@@ -1,0 +1,1489 @@
+openapi: 3.0.3
+info:
+  title: OMARINO EMS - Asset Management Service API
+  description: |
+    Asset Management Service for OMARINO Energy Management System.
+    
+    This service manages all energy assets including:
+    - Battery Energy Storage Systems (BESS)
+    - Generators (diesel, gas, etc.)
+    - Grid connections
+    - Solar PV systems
+    - Wind turbines
+    - EV chargers
+    - Load profiles
+    
+    Features:
+    - Complete CRUD operations for all asset types
+    - Asset grouping and relationships
+    - Real-time status monitoring
+    - Maintenance scheduling and tracking
+    - Performance metrics and analytics
+    - Multi-site support
+    
+  version: 1.0.0
+  contact:
+    name: OMARINO Support
+    email: support@omarino.de
+
+servers:
+  - url: https://ems-back.omarino.net/api/assets
+    description: Production server
+  - url: http://localhost:8003/api/assets
+    description: Local development
+
+tags:
+  - name: Assets
+    description: General asset management operations
+  - name: Battery
+    description: Battery energy storage system operations
+  - name: Generator
+    description: Generator asset operations
+  - name: Grid
+    description: Grid connection operations
+  - name: Solar
+    description: Solar PV system operations
+  - name: Wind
+    description: Wind turbine operations
+  - name: EV Charger
+    description: EV charger operations
+  - name: Load
+    description: Load profile operations
+  - name: Sites
+    description: Site management operations
+  - name: Groups
+    description: Asset grouping operations
+  - name: Status
+    description: Asset status and monitoring
+  - name: Maintenance
+    description: Maintenance and service records
+  - name: Performance
+    description: Performance metrics and analytics
+  - name: Health
+    description: Service health and status
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      description: Check if the asset service is running
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  version:
+                    type: string
+                    example: "1.0.0"
+                  database:
+                    type: string
+                    example: connected
+
+  # =====================================================
+  # GENERAL ASSET OPERATIONS
+  # =====================================================
+  
+  /assets:
+    get:
+      tags: [Assets]
+      summary: List all assets
+      description: Get a paginated list of all assets with optional filtering
+      parameters:
+        - name: asset_type
+          in: query
+          schema:
+            $ref: '#/components/schemas/AssetType'
+          description: Filter by asset type
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive, maintenance, decommissioned]
+          description: Filter by asset status
+        - name: site_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by site ID
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search by name or description
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  assets:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AssetSummary'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+    
+    post:
+      tags: [Assets]
+      summary: Create a new asset
+      description: Create a new asset with specifications
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssetCreate'
+      responses:
+        '201':
+          description: Asset created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /assets/{asset_id}:
+    get:
+      tags: [Assets]
+      summary: Get asset details
+      description: Get complete details of a specific asset including specifications
+      parameters:
+        - $ref: '#/components/parameters/AssetId'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    
+    put:
+      tags: [Assets]
+      summary: Update asset
+      description: Update asset information and specifications
+      parameters:
+        - $ref: '#/components/parameters/AssetId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssetUpdate'
+      responses:
+        '200':
+          description: Asset updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    
+    delete:
+      tags: [Assets]
+      summary: Delete asset
+      description: Delete an asset (soft delete by default)
+      parameters:
+        - $ref: '#/components/parameters/AssetId'
+        - name: permanent
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: Permanently delete the asset
+      responses:
+        '204':
+          description: Asset deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Cannot delete asset with dependencies
+
+  # =====================================================
+  # BATTERY ASSETS
+  # =====================================================
+  
+  /batteries:
+    get:
+      tags: [Battery]
+      summary: List battery assets
+      description: Get all battery energy storage systems
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+        - name: min_capacity_kwh
+          in: query
+          schema:
+            type: number
+        - name: chemistry
+          in: query
+          schema:
+            type: string
+            enum: [lithium_ion, lithium_iron_phosphate, lead_acid, flow_battery, other]
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  batteries:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BatteryAsset'
+    
+    post:
+      tags: [Battery]
+      summary: Create battery asset
+      description: Create a new battery energy storage system
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatteryAssetCreate'
+      responses:
+        '201':
+          description: Battery created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatteryAsset'
+
+  /batteries/{asset_id}:
+    get:
+      tags: [Battery]
+      summary: Get battery details
+      parameters:
+        - $ref: '#/components/parameters/AssetId'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatteryAsset'
+    
+    put:
+      tags: [Battery]
+      summary: Update battery specifications
+      parameters:
+        - $ref: '#/components/parameters/AssetId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatterySpecUpdate'
+      responses:
+        '200':
+          description: Battery updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatteryAsset'
+
+  # =====================================================
+  # GENERATOR ASSETS
+  # =====================================================
+  
+  /generators:
+    get:
+      tags: [Generator]
+      summary: List generator assets
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+        - name: generator_type
+          in: query
+          schema:
+            type: string
+            enum: [diesel, natural_gas, biogas, dual_fuel, other]
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  generators:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/GeneratorAsset'
+    
+    post:
+      tags: [Generator]
+      summary: Create generator asset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GeneratorAssetCreate'
+      responses:
+        '201':
+          description: Generator created successfully
+
+  /generators/{asset_id}:
+    get:
+      tags: [Generator]
+      summary: Get generator details
+      parameters:
+        - $ref: '#/components/parameters/AssetId'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeneratorAsset'
+
+  # =====================================================
+  # GRID CONNECTIONS
+  # =====================================================
+  
+  /grid-connections:
+    get:
+      tags: [Grid]
+      summary: List grid connections
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  grid_connections:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/GridConnectionAsset'
+    
+    post:
+      tags: [Grid]
+      summary: Create grid connection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GridConnectionAssetCreate'
+      responses:
+        '201':
+          description: Grid connection created successfully
+
+  # =====================================================
+  # SOLAR PV SYSTEMS
+  # =====================================================
+  
+  /solar:
+    get:
+      tags: [Solar]
+      summary: List solar PV systems
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  solar_systems:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SolarPVAsset'
+    
+    post:
+      tags: [Solar]
+      summary: Create solar PV system
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolarPVAssetCreate'
+      responses:
+        '201':
+          description: Solar PV system created successfully
+
+  # =====================================================
+  # ASSET STATUS AND MONITORING
+  # =====================================================
+  
+  /assets/{asset_id}/status:
+    get:
+      tags: [Status]
+      summary: Get asset status
+      description: Get real-time status of an asset
+      parameters:
+        - $ref: '#/components/parameters/AssetId'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetStatus'
+    
+    put:
+      tags: [Status]
+      summary: Update asset status
+      description: Update real-time status (typically from telemetry)
+      parameters:
+        - $ref: '#/components/parameters/AssetId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssetStatusUpdate'
+      responses:
+        '200':
+          description: Status updated successfully
+
+  /assets/status/dashboard:
+    get:
+      tags: [Status]
+      summary: Get status dashboard
+      description: Get aggregated status of all assets
+      parameters:
+        - name: site_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusDashboard'
+
+  # =====================================================
+  # SITES
+  # =====================================================
+  
+  /sites:
+    get:
+      tags: [Sites]
+      summary: List sites
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sites:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Site'
+    
+    post:
+      tags: [Sites]
+      summary: Create site
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SiteCreate'
+      responses:
+        '201':
+          description: Site created successfully
+
+  /sites/{site_id}:
+    get:
+      tags: [Sites]
+      summary: Get site details
+      parameters:
+        - name: site_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteDetail'
+
+  /sites/{site_id}/assets:
+    get:
+      tags: [Sites]
+      summary: Get site assets
+      description: Get all assets at a specific site
+      parameters:
+        - name: site_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  assets:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AssetSummary'
+
+  # =====================================================
+  # ASSET GROUPS
+  # =====================================================
+  
+  /groups:
+    get:
+      tags: [Groups]
+      summary: List asset groups
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+        - name: group_type
+          in: query
+          schema:
+            type: string
+            enum: [microgrid, vpp, portfolio, system, custom]
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  groups:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AssetGroup'
+    
+    post:
+      tags: [Groups]
+      summary: Create asset group
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssetGroupCreate'
+      responses:
+        '201':
+          description: Group created successfully
+
+  /groups/{group_id}/members:
+    post:
+      tags: [Groups]
+      summary: Add asset to group
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                asset_id:
+                  type: string
+                  format: uuid
+                role:
+                  type: string
+                priority:
+                  type: integer
+      responses:
+        '200':
+          description: Asset added to group
+    
+    delete:
+      tags: [Groups]
+      summary: Remove asset from group
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: asset_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Asset removed from group
+
+  # =====================================================
+  # MAINTENANCE
+  # =====================================================
+  
+  /assets/{asset_id}/maintenance:
+    get:
+      tags: [Maintenance]
+      summary: Get maintenance records
+      parameters:
+        - $ref: '#/components/parameters/AssetId'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  records:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MaintenanceRecord'
+    
+    post:
+      tags: [Maintenance]
+      summary: Create maintenance record
+      parameters:
+        - $ref: '#/components/parameters/AssetId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaintenanceRecordCreate'
+      responses:
+        '201':
+          description: Maintenance record created
+
+  /maintenance/scheduled:
+    get:
+      tags: [Maintenance]
+      summary: Get scheduled maintenance
+      description: Get all scheduled maintenance across all assets
+      parameters:
+        - name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  scheduled_maintenance:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MaintenanceRecord'
+
+  # =====================================================
+  # PERFORMANCE METRICS
+  # =====================================================
+  
+  /assets/{asset_id}/performance:
+    get:
+      tags: [Performance]
+      summary: Get asset performance metrics
+      parameters:
+        - $ref: '#/components/parameters/AssetId'
+        - name: from_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: aggregation
+          in: query
+          schema:
+            type: string
+            enum: [hourly, daily, weekly, monthly]
+            default: daily
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  performance_metrics:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PerformanceMetrics'
+
+  /performance/summary:
+    get:
+      tags: [Performance]
+      summary: Get performance summary
+      description: Get aggregated performance across all assets
+      parameters:
+        - name: site_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: asset_type
+          in: query
+          schema:
+            $ref: '#/components/schemas/AssetType'
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [today, week, month, year]
+            default: today
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PerformanceSummary'
+
+# =====================================================
+# COMPONENTS
+# =====================================================
+
+components:
+  parameters:
+    AssetId:
+      name: asset_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Unique asset identifier
+    
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        default: 50
+        maximum: 100
+      description: Maximum number of results
+    
+    Offset:
+      name: offset
+      in: query
+      schema:
+        type: integer
+        default: 0
+      description: Number of results to skip
+
+  schemas:
+    AssetType:
+      type: string
+      enum:
+        - battery
+        - generator
+        - grid_connection
+        - solar_pv
+        - wind_turbine
+        - load
+        - ev_charger
+
+    AssetSummary:
+      type: object
+      properties:
+        asset_id:
+          type: string
+          format: uuid
+        asset_type:
+          $ref: '#/components/schemas/AssetType'
+        name:
+          type: string
+        location:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive, maintenance, decommissioned]
+        site_id:
+          type: string
+          format: uuid
+        site_name:
+          type: string
+        capacity_rating:
+          type: number
+          description: Capacity or rating (unit depends on asset type)
+        online:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    AssetDetail:
+      allOf:
+        - $ref: '#/components/schemas/AssetSummary'
+        - type: object
+          properties:
+            description:
+              type: string
+            manufacturer:
+              type: string
+            model:
+              type: string
+            serial_number:
+              type: string
+            installation_date:
+              type: string
+              format: date
+            specifications:
+              type: object
+              description: Type-specific specifications
+            metadata:
+              type: object
+
+    AssetCreate:
+      type: object
+      required:
+        - asset_type
+        - name
+        - specifications
+      properties:
+        asset_type:
+          $ref: '#/components/schemas/AssetType'
+        name:
+          type: string
+        description:
+          type: string
+        location:
+          type: string
+        site_id:
+          type: string
+          format: uuid
+        manufacturer:
+          type: string
+        model:
+          type: string
+        serial_number:
+          type: string
+        installation_date:
+          type: string
+          format: date
+        specifications:
+          type: object
+          description: Type-specific specifications (see detailed schemas)
+
+    AssetUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        location:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive, maintenance, decommissioned]
+        specifications:
+          type: object
+
+    BatteryAsset:
+      allOf:
+        - $ref: '#/components/schemas/AssetDetail'
+        - type: object
+          properties:
+            battery:
+              $ref: '#/components/schemas/BatterySpec'
+
+    BatterySpec:
+      type: object
+      required:
+        - capacity_kwh
+        - max_charge_kw
+        - max_discharge_kw
+      properties:
+        capacity_kwh:
+          type: number
+          minimum: 0
+        usable_capacity_kwh:
+          type: number
+        max_charge_kw:
+          type: number
+          minimum: 0
+        max_discharge_kw:
+          type: number
+          minimum: 0
+        round_trip_efficiency:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 0.95
+        min_soc:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 0.1
+        max_soc:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 0.9
+        initial_soc:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 0.5
+        chemistry:
+          type: string
+          enum: [lithium_ion, lithium_iron_phosphate, lead_acid, flow_battery, other]
+        degradation_cost_per_kwh:
+          type: number
+          minimum: 0
+          default: 0.01
+        current_health_percentage:
+          type: number
+          minimum: 0
+          maximum: 100
+          default: 100
+
+    BatteryAssetCreate:
+      type: object
+      required:
+        - name
+        - battery
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        location:
+          type: string
+        site_id:
+          type: string
+          format: uuid
+        battery:
+          $ref: '#/components/schemas/BatterySpec'
+
+    BatterySpecUpdate:
+      type: object
+      properties:
+        capacity_kwh:
+          type: number
+        max_charge_kw:
+          type: number
+        max_discharge_kw:
+          type: number
+        current_health_percentage:
+          type: number
+
+    GeneratorAsset:
+      allOf:
+        - $ref: '#/components/schemas/AssetDetail'
+        - type: object
+          properties:
+            generator:
+              $ref: '#/components/schemas/GeneratorSpec'
+
+    GeneratorSpec:
+      type: object
+      required:
+        - rated_capacity_kw
+        - fuel_cost_per_kwh
+      properties:
+        rated_capacity_kw:
+          type: number
+          minimum: 0
+        generator_type:
+          type: string
+          enum: [diesel, natural_gas, biogas, dual_fuel, gasoline, other]
+        fuel_cost_per_kwh:
+          type: number
+          minimum: 0
+        startup_cost:
+          type: number
+          minimum: 0
+        min_uptime_hours:
+          type: integer
+          minimum: 0
+        min_downtime_hours:
+          type: integer
+          minimum: 0
+        co2_emissions_kg_per_kwh:
+          type: number
+          minimum: 0
+
+    GeneratorAssetCreate:
+      type: object
+      required:
+        - name
+        - generator
+      properties:
+        name:
+          type: string
+        generator:
+          $ref: '#/components/schemas/GeneratorSpec'
+
+    GridConnectionAsset:
+      allOf:
+        - $ref: '#/components/schemas/AssetDetail'
+        - type: object
+          properties:
+            grid:
+              $ref: '#/components/schemas/GridConnectionSpec'
+
+    GridConnectionSpec:
+      type: object
+      required:
+        - max_import_kw
+        - max_export_kw
+      properties:
+        max_import_kw:
+          type: number
+          minimum: 0
+        max_export_kw:
+          type: number
+          minimum: 0
+        import_enabled:
+          type: boolean
+          default: true
+        export_enabled:
+          type: boolean
+          default: true
+        connection_type:
+          type: string
+          enum: [low_voltage, medium_voltage, high_voltage, transmission]
+        voltage_level_kv:
+          type: number
+        utility_company:
+          type: string
+
+    GridConnectionAssetCreate:
+      type: object
+      required:
+        - name
+        - grid
+      properties:
+        name:
+          type: string
+        grid:
+          $ref: '#/components/schemas/GridConnectionSpec'
+
+    SolarPVAsset:
+      allOf:
+        - $ref: '#/components/schemas/AssetDetail'
+        - type: object
+          properties:
+            solar:
+              $ref: '#/components/schemas/SolarPVSpec'
+
+    SolarPVSpec:
+      type: object
+      required:
+        - rated_capacity_kw
+      properties:
+        rated_capacity_kw:
+          type: number
+          minimum: 0
+        panel_type:
+          type: string
+          enum: [monocrystalline, polycrystalline, thin_film, bifacial]
+        tilt_angle_degrees:
+          type: number
+          minimum: 0
+          maximum: 90
+        azimuth_degrees:
+          type: number
+          minimum: 0
+          maximum: 360
+        tracking_type:
+          type: string
+          enum: [fixed, single_axis, dual_axis]
+        inverter_efficiency:
+          type: number
+          minimum: 0
+          maximum: 1
+
+    SolarPVAssetCreate:
+      type: object
+      required:
+        - name
+        - solar
+      properties:
+        name:
+          type: string
+        solar:
+          $ref: '#/components/schemas/SolarPVSpec'
+
+    AssetStatus:
+      type: object
+      properties:
+        asset_id:
+          type: string
+          format: uuid
+        online:
+          type: boolean
+        operational_status:
+          type: string
+          enum: [online, offline, standby, fault, maintenance]
+        current_power_kw:
+          type: number
+        current_soc:
+          type: number
+          description: State of charge (for batteries)
+        fault_code:
+          type: string
+        alarm_level:
+          type: string
+          enum: [none, info, warning, error, critical]
+        alarm_message:
+          type: string
+        last_communication:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    AssetStatusUpdate:
+      type: object
+      properties:
+        online:
+          type: boolean
+        operational_status:
+          type: string
+        current_power_kw:
+          type: number
+        current_soc:
+          type: number
+        fault_code:
+          type: string
+        alarm_level:
+          type: string
+        alarm_message:
+          type: string
+
+    StatusDashboard:
+      type: object
+      properties:
+        total_assets:
+          type: integer
+        online_assets:
+          type: integer
+        offline_assets:
+          type: integer
+        assets_in_fault:
+          type: integer
+        total_capacity_kw:
+          type: number
+        current_generation_kw:
+          type: number
+        current_consumption_kw:
+          type: number
+        battery_soc_average:
+          type: number
+        assets_by_type:
+          type: object
+          additionalProperties:
+            type: integer
+
+    Site:
+      type: object
+      properties:
+        site_id:
+          type: string
+          format: uuid
+        site_name:
+          type: string
+        site_code:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        country:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+        timezone:
+          type: string
+        status:
+          type: string
+
+    SiteDetail:
+      allOf:
+        - $ref: '#/components/schemas/Site'
+        - type: object
+          properties:
+            total_assets:
+              type: integer
+            total_capacity_kw:
+              type: number
+            assets_by_type:
+              type: object
+
+    SiteCreate:
+      type: object
+      required:
+        - site_name
+      properties:
+        site_name:
+          type: string
+        site_code:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        country:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+        timezone:
+          type: string
+
+    AssetGroup:
+      type: object
+      properties:
+        group_id:
+          type: string
+          format: uuid
+        group_name:
+          type: string
+        group_type:
+          type: string
+          enum: [microgrid, vpp, portfolio, system, custom]
+        description:
+          type: string
+        member_count:
+          type: integer
+
+    AssetGroupCreate:
+      type: object
+      required:
+        - group_name
+        - group_type
+      properties:
+        group_name:
+          type: string
+        group_type:
+          type: string
+        description:
+          type: string
+        site_id:
+          type: string
+          format: uuid
+
+    MaintenanceRecord:
+      type: object
+      properties:
+        record_id:
+          type: string
+          format: uuid
+        asset_id:
+          type: string
+          format: uuid
+        maintenance_type:
+          type: string
+          enum: [preventive, corrective, predictive, emergency]
+        scheduled_date:
+          type: string
+          format: date
+        completed_date:
+          type: string
+          format: date
+        duration_hours:
+          type: number
+        performed_by:
+          type: string
+        description:
+          type: string
+        cost:
+          type: number
+        status:
+          type: string
+          enum: [scheduled, in_progress, completed, cancelled]
+
+    MaintenanceRecordCreate:
+      type: object
+      required:
+        - maintenance_type
+        - scheduled_date
+      properties:
+        maintenance_type:
+          type: string
+        scheduled_date:
+          type: string
+          format: date
+        description:
+          type: string
+        performed_by:
+          type: string
+
+    PerformanceMetrics:
+      type: object
+      properties:
+        period_start:
+          type: string
+          format: date-time
+        period_end:
+          type: string
+          format: date-time
+        total_energy_generated_kwh:
+          type: number
+        total_energy_consumed_kwh:
+          type: number
+        average_efficiency:
+          type: number
+        capacity_factor:
+          type: number
+        availability_percentage:
+          type: number
+        total_revenue:
+          type: number
+        total_cost:
+          type: number
+        co2_avoided_kg:
+          type: number
+
+    PerformanceSummary:
+      type: object
+      properties:
+        period:
+          type: string
+        total_assets:
+          type: integer
+        total_generation_kwh:
+          type: number
+        total_consumption_kwh:
+          type: number
+        net_energy_kwh:
+          type: number
+        average_capacity_factor:
+          type: number
+        total_revenue:
+          type: number
+        total_cost:
+          type: number
+        by_asset_type:
+          type: object
+          additionalProperties:
+            type: object
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              detail:
+                type: string
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: "Asset not found"
+              asset_id:
+                type: string
+
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              validation_errors:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    field:
+                      type: string
+                    message:
+                      type: string
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - BearerAuth: []
