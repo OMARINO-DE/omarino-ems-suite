@@ -11,7 +11,7 @@ import structlog
 
 from app.config import get_settings
 from app.database import AssetDatabase
-from app.routers import health, assets
+from app.routers import health, assets, batteries, status as status_router
 
 # Configure structured logging
 structlog.configure(
@@ -125,6 +125,8 @@ async def log_requests(request: Request, call_next):
 # Include routers
 app.include_router(health.router, prefix=settings.api_prefix, tags=["Health"])
 app.include_router(assets.router, prefix=settings.api_prefix, tags=["Assets"])
+app.include_router(batteries.router, prefix=settings.api_prefix, tags=["Batteries"])
+app.include_router(status_router.router, prefix=settings.api_prefix, tags=["Status"])
 
 # Root endpoint
 @app.get("/")

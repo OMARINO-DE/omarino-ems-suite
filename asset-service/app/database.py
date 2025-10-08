@@ -340,21 +340,11 @@ class AssetDatabase:
             logger.error("get_battery_spec_failed", error=str(e), asset_id=str(asset_id))
             raise
     
-    async def list_batteries(
-        self,
-        limit: int = 50,
-        offset: int = 0
-    ) -> tuple[List[Dict[str, Any]], int]:
-        """List battery assets with specifications."""
+    async def get_battery(self, asset_id: UUID) -> Optional[Dict[str, Any]]:
+        """Get a specific battery asset with all related information."""
         try:
             async with self.pool.acquire() as conn:
-                # Get total count
-                total = await conn.fetchval(
-                    "SELECT COUNT(*) FROM assets WHERE asset_type = 'battery'"
-                )
-                
-                # Get batteries
-                rows = await conn.fetch(
+                row = await conn.fetchrow(
                     """
                     SELECT 
                         a.*,
@@ -366,13 +356,85 @@ class AssetDatabase:
                     INNER JOIN battery_specs b ON a.asset_id = b.asset_id
                     LEFT JOIN sites s ON a.site_id = s.site_id
                     LEFT JOIN asset_status ast ON a.asset_id = ast.asset_id
-                    WHERE a.asset_type = 'battery'
-                    ORDER BY a.created_at DESC
-                    LIMIT $1 OFFSET $2
+                    WHERE a.asset_id = $1 AND a.asset_type = 'battery'
                     """,
-                    limit,
-                    offset
+                    asset_id
                 )
+            
+            if row:
+                return dict(row)
+            return None
+        
+        except Exception as e:
+            logger.error("get_battery_failed", error=str(e), asset_id=str(asset_id))
+            raise
+    
+    async def list_batteries(
+        self,
+        status_filter: Optional[str] = None,
+        site_id: Optional[UUID] = None,
+        chemistry: Optional[str] = None,
+        search: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0
+    ) -> tuple[List[Dict[str, Any]], int]:
+        """List battery assets with specifications and optional filters."""
+        try:
+            # Build dynamic query with filters
+            conditions = ["a.asset_type = 'battery'"]
+            params = []
+            param_idx = 1
+            
+            if status_filter:
+                conditions.append(f"a.status = ${param_idx}")
+                params.append(status_filter)
+                param_idx += 1
+            
+            if site_id:
+                conditions.append(f"a.site_id = ${param_idx}")
+                params.append(site_id)
+                param_idx += 1
+            
+            if chemistry:
+                conditions.append(f"b.chemistry = ${param_idx}")
+                params.append(chemistry)
+                param_idx += 1
+            
+            if search:
+                conditions.append(f"(a.name ILIKE ${param_idx} OR a.description ILIKE ${param_idx})")
+                params.append(f"%{search}%")
+                param_idx += 1
+            
+            where_clause = " AND ".join(conditions)
+            
+            async with self.pool.acquire() as conn:
+                # Get total count with filters
+                count_query = f"""
+                    SELECT COUNT(*)
+                    FROM assets a
+                    INNER JOIN battery_specs b ON a.asset_id = b.asset_id
+                    WHERE {where_clause}
+                """
+                total = await conn.fetchval(count_query, *params)
+                
+                # Get batteries with filters
+                params.extend([limit, offset])
+                query = f"""
+                    SELECT 
+                        a.*,
+                        s.site_name,
+                        b.*,
+                        ast.online,
+                        ast.operational_status
+                    FROM assets a
+                    INNER JOIN battery_specs b ON a.asset_id = b.asset_id
+                    LEFT JOIN sites s ON a.site_id = s.site_id
+                    LEFT JOIN asset_status ast ON a.asset_id = ast.asset_id
+                    WHERE {where_clause}
+                    ORDER BY a.created_at DESC
+                    LIMIT ${param_idx} OFFSET ${param_idx + 1}
+                """
+                rows = await conn.fetch(query, *params)
             
             batteries = [dict(row) for row in rows]
             return batteries, total
