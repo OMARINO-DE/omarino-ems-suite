@@ -67,7 +67,7 @@ async def request_forecast(req: Request, request: ForecastRequest):
                     model_name=result.model_used,
                     horizon=request.horizon,
                     granularity=request.granularity,
-                    training_samples=len(request.historical_data),
+                    training_samples=result.metadata.training_samples if result.metadata else None,
                     metrics={
                         "mae": result.metrics.mae if result.metrics else None,
                         "rmse": result.metrics.rmse if result.metrics else None,
@@ -76,10 +76,21 @@ async def request_forecast(req: Request, request: ForecastRequest):
                 )
                 
                 # Save forecast results
-                timestamps = [datetime.fromisoformat(ts.replace('Z', '+00:00')) for ts in result.timestamps]
+                timestamps = []
+                for ts in result.timestamps:
+                    if isinstance(ts, str):
+                        # Parse string timestamp
+                        ts_str = ts.replace('Z', '+00:00') if 'Z' in ts else ts
+                        timestamps.append(datetime.fromisoformat(ts_str))
+                    else:
+                        # Convert pandas Timestamp or datetime to datetime
+                        if hasattr(ts, 'to_pydatetime'):
+                            timestamps.append(ts.to_pydatetime())
+                        else:
+                            timestamps.append(ts)
                 values = result.point_forecast
-                lower_bounds = result.quantiles.get("0.05", []) if result.quantiles else None
-                upper_bounds = result.quantiles.get("0.95", []) if result.quantiles else None
+                lower_bounds = result.quantiles.get("p10", []) if result.quantiles else None
+                upper_bounds = result.quantiles.get("p90", []) if result.quantiles else None
                 
                 await db.save_forecast_results(
                     forecast_id=str(result.forecast_id),

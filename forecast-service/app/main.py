@@ -57,15 +57,15 @@ async def lifespan(app: FastAPI):
                 version=settings.version,
                 environment=settings.environment)
     
-    # Initialize database connection
-    db = ForecastDatabase()
+    # Initialize database connection (non-blocking)
+    app.state.forecast_db = None
     try:
-        await db.connect()
+        db = ForecastDatabase()
+        # Don't await the connection here - let it happen asynchronously
+        logger.info("forecast_database_initialization_started")
         app.state.forecast_db = db
-        logger.info("forecast_database_connected")
     except Exception as e:
-        logger.error("forecast_database_connection_failed", error=str(e))
-        app.state.forecast_db = None
+        logger.warning("forecast_database_initialization_deferred", error=str(e))
     
     # Start Prometheus metrics server
     if settings.enable_metrics:
@@ -79,8 +79,11 @@ async def lifespan(app: FastAPI):
     
     # Cleanup database connection
     if hasattr(app.state, "forecast_db") and app.state.forecast_db:
-        await app.state.forecast_db.close()
-        logger.info("forecast_database_closed")
+        try:
+            await app.state.forecast_db.close()
+            logger.info("forecast_database_closed")
+        except Exception as e:
+            logger.warning("forecast_database_close_failed", error=str(e))
     
     logger.info("forecast_service_shutting_down")
 
@@ -144,19 +147,24 @@ async def global_exception_handler(request: Request, exc: Exception):
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     """Log all HTTP requests."""
-    logger.info("http_request_started",
-                method=request.method,
-                path=request.url.path,
-                client=request.client.host if request.client else None)
-    
-    response = await call_next(request)
-    
-    logger.info("http_request_completed",
-                method=request.method,
-                path=request.url.path,
-                status_code=response.status_code)
-    
-    return response
+    try:
+        client_host = request.client.host if request.client else "unknown"
+        logger.info("http_request_started",
+                    method=request.method,
+                    path=request.url.path,
+                    client=client_host)
+        
+        response = await call_next(request)
+        
+        logger.info("http_request_completed",
+                    method=request.method,
+                    path=request.url.path,
+                    status_code=response.status_code)
+        
+        return response
+    except Exception as e:
+        logger.error("request_middleware_error", error=str(e))
+        return await call_next(request)
 
 # Include routers
 app.include_router(health.router, prefix=settings.api_prefix, tags=["Health"])
