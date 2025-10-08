@@ -57,15 +57,17 @@ async def lifespan(app: FastAPI):
                 version=settings.version,
                 environment=settings.environment)
     
-    # Initialize database connection (non-blocking)
+    # Initialize database connection
     app.state.forecast_db = None
     try:
         db = ForecastDatabase()
-        # Don't await the connection here - let it happen asynchronously
-        logger.info("forecast_database_initialization_started")
+        await db.connect()  # Actually connect the database pool
+        logger.info("forecast_database_initialized")
         app.state.forecast_db = db
     except Exception as e:
-        logger.warning("forecast_database_initialization_deferred", error=str(e))
+        logger.warning("forecast_database_initialization_failed", error=str(e))
+        # Set to None so endpoints can handle gracefully
+        app.state.forecast_db = None
     
     # Start Prometheus metrics server
     if settings.enable_metrics:
