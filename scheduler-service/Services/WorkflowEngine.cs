@@ -10,18 +10,15 @@ namespace OmarinoEms.SchedulerService.Services;
 /// </summary>
 public class WorkflowEngine : IWorkflowEngine
 {
-    private readonly SchedulerDbContext _context;
-    private readonly IWorkflowExecutor _executor;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<WorkflowEngine> _logger;
     private readonly Dictionary<Guid, CancellationTokenSource> _runningExecutions = new();
 
     public WorkflowEngine(
-        SchedulerDbContext context,
-        IWorkflowExecutor executor,
+        IServiceScopeFactory scopeFactory,
         ILogger<WorkflowEngine> logger)
     {
-        _context = context;
-        _executor = executor;
+        _scopeFactory = scopeFactory;
         _logger = logger;
     }
 
@@ -30,7 +27,10 @@ public class WorkflowEngine : IWorkflowEngine
         TriggerType triggerType,
         string? triggeredBy = null)
     {
-        var workflow = await _context.WorkflowDefinitions
+        using var scope = _scopeFactory.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<SchedulerDbContext>();
+        
+        var workflow = await context.WorkflowDefinitions
             .FirstOrDefaultAsync(w => w.Id == workflowId);
 
         if (workflow == null)
@@ -61,49 +61,67 @@ public class WorkflowEngine : IWorkflowEngine
             StartedAt = SystemClock.Instance.GetCurrentInstant()
         };
 
-        _context.WorkflowExecutions.Add(execution);
-        await _context.SaveChangesAsync();
+        context.WorkflowExecutions.Add(execution);
+        await context.SaveChangesAsync();
+
+        var executionId = execution.Id;
 
         _logger.LogInformation(
             "Starting workflow execution {ExecutionId} for workflow {WorkflowName}",
-            execution.Id, workflow.Name);
+            executionId, workflow.Name);
 
-        // Execute workflow in background
+        // Execute workflow in background with its own scope
         var cts = new CancellationTokenSource();
-        _runningExecutions[execution.Id] = cts;
+        _runningExecutions[executionId] = cts;
 
         _ = Task.Run(async () =>
         {
+            using var bgScope = _scopeFactory.CreateScope();
+            var bgContext = bgScope.ServiceProvider.GetRequiredService<SchedulerDbContext>();
+            var executor = bgScope.ServiceProvider.GetRequiredService<IWorkflowExecutor>();
+            
+            // Reload workflow and execution in this scope
+            var bgWorkflow = await bgContext.WorkflowDefinitions
+                .FirstOrDefaultAsync(w => w.Id == workflowId);
+            var bgExecution = await bgContext.WorkflowExecutions
+                .FirstOrDefaultAsync(e => e.Id == executionId);
+            
+            if (bgWorkflow == null || bgExecution == null)
+            {
+                _logger.LogError("Could not reload workflow or execution for background task");
+                return;
+            }
+
             try
             {
-                await _executor.ExecuteAsync(workflow, execution, cts.Token);
+                await executor.ExecuteAsync(bgWorkflow, bgExecution, cts.Token);
                 
-                execution.Status = ExecutionStatus.Completed;
-                execution.CompletedAt = SystemClock.Instance.GetCurrentInstant();
+                bgExecution.Status = ExecutionStatus.Completed;
+                bgExecution.CompletedAt = SystemClock.Instance.GetCurrentInstant();
                 
                 _logger.LogInformation(
                     "Workflow execution {ExecutionId} completed successfully in {Duration}",
-                    execution.Id, execution.Duration);
+                    executionId, bgExecution.Duration);
             }
             catch (OperationCanceledException)
             {
-                execution.Status = ExecutionStatus.Cancelled;
-                execution.CompletedAt = SystemClock.Instance.GetCurrentInstant();
+                bgExecution.Status = ExecutionStatus.Cancelled;
+                bgExecution.CompletedAt = SystemClock.Instance.GetCurrentInstant();
                 
-                _logger.LogWarning("Workflow execution {ExecutionId} was cancelled", execution.Id);
+                _logger.LogWarning("Workflow execution {ExecutionId} was cancelled", executionId);
             }
             catch (Exception ex)
             {
-                execution.Status = ExecutionStatus.Failed;
-                execution.ErrorMessage = ex.Message;
-                execution.CompletedAt = SystemClock.Instance.GetCurrentInstant();
+                bgExecution.Status = ExecutionStatus.Failed;
+                bgExecution.ErrorMessage = ex.Message;
+                bgExecution.CompletedAt = SystemClock.Instance.GetCurrentInstant();
                 
-                _logger.LogError(ex, "Workflow execution {ExecutionId} failed", execution.Id);
+                _logger.LogError(ex, "Workflow execution {ExecutionId} failed", executionId);
             }
             finally
             {
-                await _context.SaveChangesAsync();
-                _runningExecutions.Remove(execution.Id);
+                await bgContext.SaveChangesAsync();
+                _runningExecutions.Remove(executionId);
             }
         }, cts.Token);
 
@@ -112,7 +130,10 @@ public class WorkflowEngine : IWorkflowEngine
 
     public async Task CancelExecutionAsync(Guid executionId)
     {
-        var execution = await _context.WorkflowExecutions
+        using var scope = _scopeFactory.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<SchedulerDbContext>();
+        
+        var execution = await context.WorkflowExecutions
             .FirstOrDefaultAsync(e => e.Id == executionId);
 
         if (execution == null)
@@ -135,7 +156,10 @@ public class WorkflowEngine : IWorkflowEngine
 
     public async Task<WorkflowExecution?> GetExecutionStatusAsync(Guid executionId)
     {
-        return await _context.WorkflowExecutions
+        using var scope = _scopeFactory.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<SchedulerDbContext>();
+        
+        return await context.WorkflowExecutions
             .Include(e => e.TaskExecutions)
             .Include(e => e.Workflow)
             .FirstOrDefaultAsync(e => e.Id == executionId);
