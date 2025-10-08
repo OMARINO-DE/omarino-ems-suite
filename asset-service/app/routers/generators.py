@@ -139,7 +139,7 @@ async def create_generator(
             asset_type="generator",
             description=generator_data.get("description"),
             manufacturer=generator_data.get("manufacturer"),
-            model_number=generator_data.get("model_number"),
+            model_number=generator_data.get("model"),
             serial_number=generator_data.get("serial_number"),
             installation_date=generator_data.get("installation_date"),
             metadata=generator_data.get("metadata", {}),
