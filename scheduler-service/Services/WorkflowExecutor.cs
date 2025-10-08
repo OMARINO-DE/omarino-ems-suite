@@ -29,6 +29,9 @@ public class WorkflowExecutor : IWorkflowExecutor
         WorkflowExecution execution,
         CancellationToken cancellationToken)
     {
+        // Attach execution to this context so TaskExecutions can be tracked properly
+        _context.Attach(execution);
+        
         _logger.LogInformation("Executing workflow {WorkflowName} (execution {ExecutionId})",
             workflow.Name, execution.Id);
 
