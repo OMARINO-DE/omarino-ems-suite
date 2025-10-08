@@ -27,16 +27,19 @@ public class SchedulerDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => e.Name);
             entity.Property(e => e.Tasks)
+                .HasColumnType("jsonb")
                 .HasConversion(
                     v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
                     v => System.Text.Json.JsonSerializer.Deserialize<List<WorkflowTask>>(v, (System.Text.Json.JsonSerializerOptions?)null) ?? new List<WorkflowTask>()
                 );
             entity.Property(e => e.Schedule)
+                .HasColumnType("jsonb")
                 .HasConversion(
                     v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
                     v => System.Text.Json.JsonSerializer.Deserialize<WorkflowSchedule>(v, (System.Text.Json.JsonSerializerOptions?)null)
                 );
             entity.Property(e => e.Tags)
+                .HasColumnType("jsonb")
                 .HasConversion(
                     v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
                     v => System.Text.Json.JsonSerializer.Deserialize<List<string>>(v, (System.Text.Json.JsonSerializerOptions?)null) ?? new List<string>()
