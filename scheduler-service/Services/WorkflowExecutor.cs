@@ -272,7 +272,7 @@ public class WorkflowExecutor : IWorkflowExecutor
         }
 
         var client = _httpClientFactory.CreateClient();
-        var request = new HttpRequestMessage(HttpMethod.Post, "http://forecast-service:8001/api/forecast/forecast");
+        var request = new HttpRequestMessage(HttpMethod.Post, "http://forecast-service:8001/api/forecast");
         
         var requestBody = new
         {
