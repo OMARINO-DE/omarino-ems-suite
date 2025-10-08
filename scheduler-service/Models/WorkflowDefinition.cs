@@ -100,7 +100,9 @@ public enum TaskType
     Delay,          // Wait for a specified duration
     Condition,      // Conditional branching
     Transform,      // Data transformation
-    Notification    // Send notification (email, webhook, etc.)
+    Notification,   // Send notification (email, webhook, etc.)
+    Forecast,       // Generate a forecast
+    Optimization    // Run an optimization
 }
 
 /// <summary>

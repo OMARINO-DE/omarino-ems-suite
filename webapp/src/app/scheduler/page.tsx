@@ -591,6 +591,8 @@ function EditWorkflowModal({
                           <option value="2">Condition</option>
                           <option value="3">Transform</option>
                           <option value="4">Notification</option>
+                          <option value="5">Forecast</option>
+                          <option value="6">Optimization</option>
                         </select>
                       </div>
                     </div>
@@ -632,6 +634,94 @@ function EditWorkflowModal({
                           <option value="PUT">PUT</option>
                           <option value="DELETE">DELETE</option>
                         </select>
+                      </div>
+                    </div>
+                  )}
+
+                  {task.type === 5 && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Series ID *
+                        </label>
+                        <input
+                          type="text"
+                          value={task.config?.series_id || ''}
+                          onChange={(e) => handleUpdateTask(index, 'config.series_id', e.target.value)}
+                          className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                          placeholder="meter-001-demand"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Horizon (hours) *
+                        </label>
+                        <input
+                          type="number"
+                          value={task.config?.horizon || 24}
+                          onChange={(e) => handleUpdateTask(index, 'config.horizon', parseInt(e.target.value))}
+                          className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                          placeholder="24"
+                          min="1"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Model
+                        </label>
+                        <select
+                          value={task.config?.model || 'auto'}
+                          onChange={(e) => handleUpdateTask(index, 'config.model', e.target.value)}
+                          className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                        >
+                          <option value="auto">Auto</option>
+                          <option value="arima">ARIMA</option>
+                          <option value="ets">ETS</option>
+                          <option value="xgboost">XGBoost</option>
+                          <option value="lightgbm">LightGBM</option>
+                          <option value="seasonal_naive">Seasonal Naive</option>
+                          <option value="last_value">Last Value</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Granularity
+                        </label>
+                        <select
+                          value={task.config?.granularity || 'hourly'}
+                          onChange={(e) => handleUpdateTask(index, 'config.granularity', e.target.value)}
+                          className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                        >
+                          <option value="15min">15 minutes</option>
+                          <option value="hourly">Hourly</option>
+                          <option value="daily">Daily</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  {task.type === 6 && (
+                    <div className="space-y-2">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Optimization Type *
+                        </label>
+                        <select
+                          value={task.config?.optimization_type || 'battery_dispatch'}
+                          onChange={(e) => handleUpdateTask(index, 'config.optimization_type', e.target.value)}
+                          className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                        >
+                          <option value="battery_dispatch">Battery Dispatch</option>
+                          <option value="unit_commitment">Unit Commitment</option>
+                          <option value="procurement">Procurement</option>
+                          <option value="self_consumption">Self Consumption</option>
+                          <option value="peak_shaving">Peak Shaving</option>
+                        </select>
+                      </div>
+                      <div className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded p-2">
+                        <p className="font-medium mb-1">Note:</p>
+                        <p>Optimization requires complex configuration (assets, prices, forecasts). 
+                        For now, default parameters will be used. Full configuration coming soon.</p>
                       </div>
                     </div>
                   )}

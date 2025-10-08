@@ -134,6 +134,8 @@ public class WorkflowExecutor : IWorkflowExecutor
                 TaskType.Condition => ExecuteCondition(task, previousResults),
                 TaskType.Transform => ExecuteTransform(task, previousResults),
                 TaskType.Notification => await ExecuteNotificationAsync(task, cts.Token),
+                TaskType.Forecast => await ExecuteForecastAsync(task, cts.Token),
+                TaskType.Optimization => await ExecuteOptimizationAsync(task, cts.Token),
                 _ => throw new NotImplementedException($"Task type {task.Type} not implemented")
             };
         }
@@ -233,6 +235,136 @@ public class WorkflowExecutor : IWorkflowExecutor
         await Task.CompletedTask;
         
         return new { type, message, sent = true };
+    }
+
+    private async Task<object?> ExecuteForecastAsync(WorkflowTask task, CancellationToken cancellationToken)
+    {
+        var seriesId = task.Config.GetValueOrDefault("series_id", "").ToString();
+        var horizon = Convert.ToInt32(task.Config.GetValueOrDefault("horizon", 24));
+        var model = task.Config.GetValueOrDefault("model", "auto").ToString();
+        var granularity = task.Config.GetValueOrDefault("granularity", "hourly").ToString();
+
+        if (string.IsNullOrEmpty(seriesId))
+        {
+            throw new InvalidOperationException("series_id is required for Forecast task");
+        }
+
+        var client = _httpClientFactory.CreateClient();
+        var request = new HttpRequestMessage(HttpMethod.Post, "http://forecast-service:8001/api/forecast/forecast");
+        
+        var requestBody = new
+        {
+            series_id = seriesId,
+            horizon,
+            model,
+            granularity
+        };
+
+        request.Content = new StringContent(
+            JsonSerializer.Serialize(requestBody),
+            System.Text.Encoding.UTF8,
+            "application/json");
+
+        _logger.LogInformation("Generating forecast for series {SeriesId} with model {Model}, horizon {Horizon}",
+            seriesId, model, horizon);
+
+        var response = await client.SendAsync(request, cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        var content = await response.Content.ReadAsStringAsync(cancellationToken);
+        var result = JsonSerializer.Deserialize<JsonElement>(content);
+
+        return new
+        {
+            statusCode = (int)response.StatusCode,
+            forecast_id = result.GetProperty("forecast_id").GetString(),
+            series_id = seriesId,
+            model = model,
+            horizon = horizon
+        };
+    }
+
+    private async Task<object?> ExecuteOptimizationAsync(WorkflowTask task, CancellationToken cancellationToken)
+    {
+        var optimizationType = task.Config.GetValueOrDefault("optimization_type", "battery_dispatch").ToString();
+        
+        if (string.IsNullOrEmpty(optimizationType))
+        {
+            throw new InvalidOperationException("optimization_type is required for Optimization task");
+        }
+
+        // Build optimization request from config
+        var requestBody = new Dictionary<string, object>
+        {
+            ["optimization_type"] = optimizationType,
+            ["objective"] = task.Config.GetValueOrDefault("objective", "minimize_cost"),
+            ["start_time"] = task.Config.GetValueOrDefault("start_time", DateTime.UtcNow.ToString("o"))!,
+            ["end_time"] = task.Config.GetValueOrDefault("end_time", DateTime.UtcNow.AddHours(24).ToString("o"))!,
+            ["time_step_minutes"] = Convert.ToInt32(task.Config.GetValueOrDefault("time_step_minutes", 15)),
+            ["solver"] = task.Config.GetValueOrDefault("solver", "cbc"),
+            ["time_limit_seconds"] = Convert.ToInt32(task.Config.GetValueOrDefault("time_limit_seconds", 300)),
+            ["mip_gap"] = Convert.ToDouble(task.Config.GetValueOrDefault("mip_gap", 0.01))
+        };
+
+        // Add assets if provided
+        if (task.Config.ContainsKey("assets"))
+        {
+            requestBody["assets"] = task.Config["assets"];
+        }
+
+        // Add prices if provided
+        if (task.Config.ContainsKey("import_prices"))
+        {
+            requestBody["import_prices"] = task.Config["import_prices"];
+        }
+        if (task.Config.ContainsKey("export_prices"))
+        {
+            requestBody["export_prices"] = task.Config["export_prices"];
+        }
+
+        // Add forecasts if provided
+        if (task.Config.ContainsKey("load_forecast"))
+        {
+            requestBody["load_forecast"] = task.Config["load_forecast"];
+        }
+        if (task.Config.ContainsKey("solar_forecast"))
+        {
+            requestBody["solar_forecast"] = task.Config["solar_forecast"];
+        }
+        if (task.Config.ContainsKey("wind_forecast"))
+        {
+            requestBody["wind_forecast"] = task.Config["wind_forecast"];
+        }
+
+        // Add constraints if provided
+        if (task.Config.ContainsKey("constraints"))
+        {
+            requestBody["constraints"] = task.Config["constraints"];
+        }
+
+        var client = _httpClientFactory.CreateClient();
+        var request = new HttpRequestMessage(HttpMethod.Post, "http://optimize-service:8002/api/optimize/optimize");
+
+        request.Content = new StringContent(
+            JsonSerializer.Serialize(requestBody),
+            System.Text.Encoding.UTF8,
+            "application/json");
+
+        _logger.LogInformation("Running {OptimizationType} optimization", optimizationType);
+
+        var response = await client.SendAsync(request, cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        var content = await response.Content.ReadAsStringAsync(cancellationToken);
+        var result = JsonSerializer.Deserialize<JsonElement>(content);
+
+        return new
+        {
+            statusCode = (int)response.StatusCode,
+            optimization_id = result.GetProperty("optimization_id").GetString(),
+            optimization_type = optimizationType,
+            status = result.GetProperty("status").GetString()
+        };
     }
 
     private List<WorkflowTask> TopologicalSort(List<WorkflowTask> tasks)
