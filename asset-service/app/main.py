@@ -48,17 +48,17 @@ async def lifespan(app: FastAPI):
     db = AssetDatabase()
     try:
         await db.connect()
-        app.state.asset_db = db
+        app.state.db = db  # Changed from asset_db to db for router consistency
         logger.info("asset_database_connected")
     except Exception as e:
         logger.error("asset_database_connection_failed", error=str(e))
-        app.state.asset_db = None
+        app.state.db = None
     
     yield
     
     # Cleanup database connection
-    if hasattr(app.state, "asset_db") and app.state.asset_db:
-        await app.state.asset_db.close()
+    if hasattr(app.state, "db") and app.state.db:
+        await app.state.db.close()
         logger.info("asset_database_closed")
     
     logger.info("asset_service_shutting_down")
