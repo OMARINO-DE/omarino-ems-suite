@@ -358,36 +358,36 @@ public class WorkflowExecutor : IWorkflowExecutor
         {
             // Provide minimal default assets for demonstration
             _logger.LogInformation("Using default demo assets for battery_dispatch optimization");
-            requestBody["assets"] = new[]
+            requestBody["assets"] = new object[]
             {
-                new
+                new Dictionary<string, object>
                 {
-                    asset_id = "demo-battery-1",
-                    asset_type = "battery",
-                    name = "Demo Battery Storage",
-                    battery = new
+                    ["asset_id"] = "demo-battery-1",
+                    ["asset_type"] = "battery",
+                    ["name"] = "Demo Battery Storage",
+                    ["battery"] = new Dictionary<string, object>
                     {
-                        capacity_kwh = 100.0,
-                        max_charge_kw = 50.0,
-                        max_discharge_kw = 50.0,
-                        efficiency = 0.95,
-                        initial_soc = 0.5,
-                        min_soc = 0.1,
-                        max_soc = 0.9,
-                        degradation_cost_per_kwh = 0.01
+                        ["capacity_kwh"] = 100.0,
+                        ["max_charge_kw"] = 50.0,
+                        ["max_discharge_kw"] = 50.0,
+                        ["efficiency"] = 0.95,
+                        ["initial_soc"] = 0.5,
+                        ["min_soc"] = 0.1,
+                        ["max_soc"] = 0.9,
+                        ["degradation_cost_per_kwh"] = 0.01
                     }
                 },
-                new
+                new Dictionary<string, object>
                 {
-                    asset_id = "demo-grid-1",
-                    asset_type = "grid_connection",
-                    name = "Demo Grid Connection",
-                    grid = new
+                    ["asset_id"] = "demo-grid-1",
+                    ["asset_type"] = "grid_connection",
+                    ["name"] = "Demo Grid Connection",
+                    ["grid"] = new Dictionary<string, object>
                     {
-                        max_import_kw = 100.0,
-                        max_export_kw = 50.0,
-                        import_enabled = true,
-                        export_enabled = true
+                        ["max_import_kw"] = 100.0,
+                        ["max_export_kw"] = 50.0,
+                        ["import_enabled"] = true,
+                        ["export_enabled"] = true
                     }
                 }
             };
