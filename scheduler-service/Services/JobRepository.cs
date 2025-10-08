@@ -57,14 +57,31 @@ public class JobRepository : IJobRepository
 
     public async Task<WorkflowDefinition> UpdateWorkflowAsync(WorkflowDefinition workflow)
     {
-        workflow.UpdatedAt = NodaTime.SystemClock.Instance.GetCurrentInstant();
-        _context.WorkflowDefinitions.Update(workflow);
+        var existing = await _context.WorkflowDefinitions
+            .FirstOrDefaultAsync(w => w.Id == workflow.Id);
+            
+        if (existing == null)
+        {
+            throw new KeyNotFoundException($"Workflow with ID {workflow.Id} not found");
+        }
+        
+        // Update properties
+        existing.Name = workflow.Name;
+        existing.Description = workflow.Description;
+        existing.IsEnabled = workflow.IsEnabled;
+        existing.Tasks = workflow.Tasks;
+        existing.Schedule = workflow.Schedule;
+        existing.Tags = workflow.Tags;
+        existing.MaxExecutionTime = workflow.MaxExecutionTime;
+        existing.MaxRetries = workflow.MaxRetries;
+        existing.UpdatedAt = NodaTime.SystemClock.Instance.GetCurrentInstant();
+        
         await _context.SaveChangesAsync();
         
         _logger.LogInformation("Updated workflow {WorkflowName} ({WorkflowId})",
             workflow.Name, workflow.Id);
         
-        return workflow;
+        return existing;
     }
 
     public async Task DeleteWorkflowAsync(Guid id)
