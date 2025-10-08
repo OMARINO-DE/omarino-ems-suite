@@ -64,6 +64,7 @@ public class WorkflowExecutor : IWorkflowExecutor
             };
 
             execution.TaskExecutions.Add(taskExecution);
+            _context.TaskExecutions.Add(taskExecution); // Explicitly add to context
             await _context.SaveChangesAsync(cancellationToken);
 
             try
