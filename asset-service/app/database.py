@@ -289,21 +289,25 @@ class AssetDatabase:
     ) -> Dict[str, Any]:
         """Create battery specifications."""
         try:
+            # Calculate rated_power_kw as minimum of max_charge and max_discharge
+            rated_power_kw = min(spec.max_charge_kw, spec.max_discharge_kw)
+            
             async with self.pool.acquire() as conn:
                 row = await conn.fetchrow(
                     """
                     INSERT INTO battery_specs (
-                        asset_id, capacity_kwh, usable_capacity_kwh,
+                        asset_id, capacity_kwh, usable_capacity_kwh, rated_power_kw,
                         max_charge_kw, max_discharge_kw,
                         round_trip_efficiency, min_soc, max_soc, initial_soc,
                         chemistry, degradation_cost_per_kwh, current_health_percentage,
                         updated_at
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
                     RETURNING *
                     """,
                     asset_id,
                     spec.capacity_kwh,
                     spec.usable_capacity_kwh,
+                    rated_power_kw,
                     spec.max_charge_kw,
                     spec.max_discharge_kw,
                     spec.round_trip_efficiency,
