@@ -24,6 +24,48 @@ Experience the full platform with:
 - Real-time time-series data visualization
 - Workflow scheduling and automation
 
+## 🧠 AI Capabilities (New)
+
+OMARINO EMS Suite now includes an integrated **AI Hub** and machine-learning extensions that make it a next-generation Energy Management Platform.
+
+### 🔍 Core AI Features
+| Feature | Description |
+|----------|--------------|
+| **AI Hub Service** | Central FastAPI-based microservice `/ai/*` providing standardized ML & inference endpoints |
+| **Probabilistic Forecasting** | Quantile-based load & renewable forecasts (p10/p50/p90) with backtesting metrics (MAPE, pinball loss) |
+| **Hybrid Forecast Models** | Combines statistical (ARIMA/ETS) and deep-learning models (N-HiTS, TFT) for high accuracy |
+| **Anomaly Detection** | AI-based detection of meter and SCADA anomalies, gaps, and sensor faults |
+| **Explainability Layer** | `/ai/explain` endpoint with SHAP feature importances and uncertainty visualizations in the web UI |
+| **Scenario Generator** | `/ai/scenario` Monte Carlo generation of stochastic inputs for robust optimization |
+| **RL-Assisted Dispatch** | Reinforcement learning agent recommending optimal intraday scheduling for batteries or flexible loads |
+| **RAG-Based Energy Copilot** | Natural-language assistant (Chat + Q&A) for operators; answers questions on data, regulations, and KPIs |
+| **Rules-as-Code Framework** | Plugin system for region-specific rule packs (e.g., DE-Holiday Adjustment, Redispatch 2.0) |
+| **Feature Store & Model Registry** | Versioned feature pipelines, artifact storage (MinIO/S3), and automatic retraining triggers |
+| **Federated Learning (planned)** | Cross-tenant model training without sharing raw data for GAIA-X compliance |
+| **Adaptive Scheduler (planned)** | AI-driven DAG orchestration that optimizes job order and SLA compliance |
+
+---
+
+### 💡 How It Works
+- The **AI Hub** runs as an independent container and connects via the API Gateway.
+- Models are trained using internal historical data and metadata from the **Feature Store**.
+- The **Model Registry** tracks versions, metrics, and drift.
+- The web app visualizes forecasts, uncertainty, and explainability cards.
+- Operators can query the **Energy Copilot** to generate reports, forecasts, or compliance answers in natural language.
+
+---
+
+### 🧩 AI Extension Roadmap
+| Phase | Focus | Key Deliverables |
+|--------|--------|------------------|
+| **Phase 1** | AI Hub MVP | `/ai/forecast`, `/ai/anomaly`, Feature Store, Model Registry |
+| **Phase 2** | Deep Learning & Explainability | N-HiTS/TFT models, `/ai/explain`, scenario engine, report generator |
+| **Phase 3** | Copilot & RL Optimization | Energy Copilot (RAG), RL-based dispatch, adaptive scheduler |
+| **Phase 4** | Federated & Regulatory Intelligence | Federated learning, rule packs, knowledge graph integration |
+
+---
+
+
 ## 🎯 Overview
 
 OMARINO EMS Suite is a modern, containerized microservices platform designed for energy management systems. It provides:
