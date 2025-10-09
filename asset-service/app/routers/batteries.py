@@ -9,9 +9,14 @@ from fastapi import APIRouter, HTTPException, Query, Request, status
 import structlog
 
 from app.models import (
+    Asset,
+    AssetStatus,
+    AssetType,
     BatteryAsset,
     BatteryAssetCreate,
+    BatteryChemistry,
     BatteryListResponse,
+    BatterySpec,
     ErrorResponse,
 )
 
@@ -161,8 +166,8 @@ async def create_battery(
         )
 
         # Retrieve the complete battery asset
-        battery = await db.get_battery(asset_id)
-        if not battery:
+        battery_data_dict = await db.get_battery(asset_id)
+        if not battery_data_dict:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Battery created but failed to retrieve",
@@ -176,7 +181,45 @@ async def create_battery(
             capacity=battery_data.battery.capacity_kwh,
         )
 
-        return battery
+        # Transform flat dictionary to nested BatteryAsset structure
+        asset = Asset(
+            asset_id=battery_data_dict["asset_id"],
+            asset_type=AssetType(battery_data_dict["asset_type"]),
+            name=battery_data_dict["name"],
+            description=battery_data_dict.get("description"),
+            location=battery_data_dict.get("location"),
+            site_id=battery_data_dict.get("site_id"),
+            status=AssetStatus(battery_data_dict["status"]),
+            installation_date=battery_data_dict.get("installation_date"),
+            commissioning_date=battery_data_dict.get("commissioning_date"),
+            warranty_expiry_date=battery_data_dict.get("warranty_expiry_date"),
+            manufacturer=battery_data_dict.get("manufacturer"),
+            model=battery_data_dict.get("model"),
+            serial_number=battery_data_dict.get("serial_number"),
+            metadata=battery_data_dict.get("metadata"),
+            created_at=battery_data_dict["created_at"],
+            updated_at=battery_data_dict["updated_at"],
+            created_by=battery_data_dict.get("created_by"),
+            updated_by=battery_data_dict.get("updated_by")
+        )
+        
+        battery_spec = BatterySpec(
+            asset_id=battery_data_dict["asset_id"],
+            capacity_kwh=battery_data_dict["capacity_kwh"],
+            usable_capacity_kwh=battery_data_dict.get("usable_capacity_kwh"),
+            max_charge_kw=battery_data_dict["max_charge_kw"],
+            max_discharge_kw=battery_data_dict["max_discharge_kw"],
+            round_trip_efficiency=battery_data_dict["round_trip_efficiency"],
+            min_soc=battery_data_dict["min_soc"],
+            max_soc=battery_data_dict["max_soc"],
+            initial_soc=battery_data_dict.get("initial_soc", 0.5),
+            chemistry=BatteryChemistry(battery_data_dict["chemistry"]) if battery_data_dict.get("chemistry") else None,
+            degradation_cost_per_kwh=battery_data_dict.get("degradation_cost_per_kwh", 0.01),
+            current_health_percentage=battery_data_dict.get("current_health_percentage", 100.0),
+            updated_at=battery_data_dict["updated_at"]
+        )
+        
+        return BatteryAsset(**asset.model_dump(), battery=battery_spec)
 
     except Exception as e:
         logger.exception("create_battery_error", error=str(e))
