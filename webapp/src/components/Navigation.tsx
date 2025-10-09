@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Activity, BarChart3, Zap, Clock, Settings } from 'lucide-react'
+import { Activity, BarChart3, Zap, Clock, Settings, Battery } from 'lucide-react'
 import clsx from 'clsx'
 
 const navigation = [
@@ -10,6 +10,7 @@ const navigation = [
   { name: 'Time Series', href: '/timeseries', icon: BarChart3 },
   { name: 'Forecasts', href: '/forecasts', icon: Zap },
   { name: 'Optimization', href: '/optimization', icon: Zap },
+  { name: 'Assets', href: '/assets', icon: Battery },
   { name: 'Scheduler', href: '/scheduler', icon: Clock },
 ]
 

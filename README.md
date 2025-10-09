@@ -115,6 +115,52 @@ make down
 3. All dependencies (Node 20, Python 3.11, .NET 8, PostgreSQL tools) are pre-installed
 4. Run `make test` to verify setup
 
+## ✨ Latest Updates (October 2025)
+
+### 🎨 Frontend Improvements
+- **Server-Side Rendering (SSR)**: Migrated all data-fetching pages to Next.js SSR for improved performance and SEO
+  - Forecasts, Optimization, Scheduler, and Time Series pages now use server components
+  - Eliminates CORS issues by using internal Docker network for server-side requests
+  - Client components hardcoded to use public API URL for browser-side interactions
+
+- **Manual Data Refresh**: Added refresh buttons to key pages
+  - Forecasts, Optimization, and Scheduler pages now have manual refresh capability
+  - Uses `router.refresh()` to trigger server-side data re-fetch
+  - Provides visual feedback during refresh operations
+
+- **Enhanced Optimization Details Modal**: Redesigned optimization detail view
+  - Displays optimization status with color-coded indicators
+  - Shows cost breakdowns (total, energy, grid costs)
+  - Presents solver information and error messages
+  - Supports failed, pending, and completed optimizations
+
+### 🔧 Backend Fixes
+- **Database Schema Updates**: Relaxed NOT NULL constraints for better error handling
+  - Made `objective_function`, `start_time`, and `end_time` nullable in `optimization_jobs` table
+  - Allows optimizations to be saved even with partial data
+  - Improves error recovery and debugging capabilities
+
+### 🐳 Docker & Deployment
+- **Private Registry Integration**: All services now use private registry (192.168.61.21:32768)
+  - Consistent image tagging across all microservices
+  - Simplified deployment with pre-built images
+  - Multi-platform support (amd64/arm64) for all services
+
+- **Docker Network Optimization**: Improved service discovery
+  - All services connected to `omarino-network` with proper aliases
+  - Gateway can reliably reach all backend services
+  - Network aliases match service names for consistent routing
+
+- **Portainer-Ready Stack**: Enhanced docker-compose for Portainer deployment
+  - Deploy replicas and restart policies configured
+  - Environment variables properly documented
+  - Health checks for all services
+
+### 📊 Infrastructure
+- **Redis Architecture Fix**: Resolved AMD64/ARM64 compatibility issues
+- **Service Health Monitoring**: Improved health check endpoints across all services
+- **CORS Configuration**: Proper handling of cross-origin requests for SSR and client-side rendering
+
 ## 📚 Documentation
 
 - **[Architecture](docs/architecture.md)** – System design, C4 diagrams, data flow

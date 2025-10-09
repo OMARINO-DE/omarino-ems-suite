@@ -425,11 +425,21 @@ class AssetDatabase:
                 params.extend([limit, offset])
                 query = f"""
                     SELECT 
-                        a.*,
+                        a.asset_id, a.asset_type, a.name, a.description, a.location,
+                        a.site_id, a.manufacturer, a.model, a.serial_number,
+                        a.installation_date, a.status, a.metadata,
+                        a.created_at, a.updated_at as asset_updated_at,
                         s.site_name,
-                        b.*,
-                        ast.online,
-                        ast.operational_status
+                        b.capacity_kwh, b.usable_capacity_kwh, b.max_charge_kw,
+                        b.max_discharge_kw, b.round_trip_efficiency, b.min_soc,
+                        b.max_soc, b.initial_soc, b.chemistry,
+                        b.degradation_cost_per_kwh, b.current_health_percentage,
+                        b.continuous_charge_kw, b.continuous_discharge_kw,
+                        b.charge_efficiency, b.discharge_efficiency,
+                        b.target_soc, b.cycle_life, b.current_cycle_count,
+                        b.ramp_up_rate_kw_per_sec, b.ramp_down_rate_kw_per_sec,
+                        b.updated_at as battery_updated_at,
+                        ast.online, ast.operational_status
                     FROM assets a
                     INNER JOIN battery_specs b ON a.asset_id = b.asset_id
                     LEFT JOIN sites s ON a.site_id = s.site_id
@@ -440,7 +450,54 @@ class AssetDatabase:
                 """
                 rows = await conn.fetch(query, *params)
             
-            batteries = [dict(row) for row in rows]
+            # Restructure data to match BatteryAsset model with nested battery field
+            batteries = []
+            for row in rows:
+                row_dict = dict(row)
+                battery_data = {
+                    "asset_id": str(row_dict["asset_id"]),
+                    "asset_type": row_dict["asset_type"],
+                    "name": row_dict["name"],
+                    "description": row_dict["description"],
+                    "location": row_dict["location"],
+                    "site_id": str(row_dict["site_id"]) if row_dict.get("site_id") else None,
+                    "manufacturer": row_dict["manufacturer"],
+                    "model": row_dict["model"],
+                    "serial_number": row_dict["serial_number"],
+                    "installation_date": row_dict["installation_date"].isoformat() if row_dict.get("installation_date") else None,
+                    "status": row_dict["status"],
+                    "metadata": row_dict["metadata"],
+                    "created_at": row_dict["created_at"].isoformat(),
+                    "updated_at": row_dict["asset_updated_at"].isoformat(),
+                    "site_name": row_dict.get("site_name"),
+                    "online": row_dict.get("online"),
+                    "battery": {
+                        "asset_id": str(row_dict["asset_id"]),
+                        "capacity_kwh": float(row_dict["capacity_kwh"]),
+                        "usable_capacity_kwh": float(row_dict["usable_capacity_kwh"]) if row_dict.get("usable_capacity_kwh") else None,
+                        "max_charge_kw": float(row_dict["max_charge_kw"]),
+                        "max_discharge_kw": float(row_dict["max_discharge_kw"]),
+                        "round_trip_efficiency": float(row_dict["round_trip_efficiency"]),
+                        "min_soc": float(row_dict["min_soc"]),
+                        "max_soc": float(row_dict["max_soc"]),
+                        "initial_soc": float(row_dict["initial_soc"]),
+                        "chemistry": row_dict.get("chemistry"),
+                        "degradation_cost_per_kwh": float(row_dict["degradation_cost_per_kwh"]) if row_dict.get("degradation_cost_per_kwh") else None,
+                        "current_health_percentage": float(row_dict["current_health_percentage"]) if row_dict.get("current_health_percentage") else None,
+                        "continuous_charge_kw": float(row_dict["continuous_charge_kw"]) if row_dict.get("continuous_charge_kw") else None,
+                        "continuous_discharge_kw": float(row_dict["continuous_discharge_kw"]) if row_dict.get("continuous_discharge_kw") else None,
+                        "charge_efficiency": float(row_dict["charge_efficiency"]) if row_dict.get("charge_efficiency") else None,
+                        "discharge_efficiency": float(row_dict["discharge_efficiency"]) if row_dict.get("discharge_efficiency") else None,
+                        "target_soc": float(row_dict["target_soc"]) if row_dict.get("target_soc") else None,
+                        "cycle_life": row_dict.get("cycle_life"),
+                        "current_cycle_count": row_dict.get("current_cycle_count"),
+                        "ramp_up_rate_kw_per_sec": float(row_dict["ramp_up_rate_kw_per_sec"]) if row_dict.get("ramp_up_rate_kw_per_sec") else None,
+                        "ramp_down_rate_kw_per_sec": float(row_dict["ramp_down_rate_kw_per_sec"]) if row_dict.get("ramp_down_rate_kw_per_sec") else None,
+                        "updated_at": row_dict["battery_updated_at"].isoformat(),
+                    }
+                }
+                batteries.append(battery_data)
+            
             return batteries, total
         
         except Exception as e:
@@ -571,11 +628,18 @@ class AssetDatabase:
                 params.extend([limit, offset])
                 query = f"""
                     SELECT 
-                        a.*,
+                        a.asset_id, a.asset_type, a.name, a.description, a.location,
+                        a.site_id, a.manufacturer, a.model, a.serial_number,
+                        a.installation_date, a.status, a.metadata,
+                        a.created_at, a.updated_at as asset_updated_at,
                         s.site_name,
-                        g.*,
-                        ast.online,
-                        ast.operational_status
+                        g.rated_capacity_kw, g.max_output_kw, g.min_output_kw,
+                        g.generator_type, g.fuel_cost_per_kwh, g.startup_cost,
+                        g.shutdown_cost, g.min_uptime_hours, g.min_downtime_hours,
+                        g.co2_emissions_kg_per_kwh, g.fuel_type, g.efficiency_at_rated_load,
+                        g.ramp_up_rate_kw_per_min, g.ramp_down_rate_kw_per_min, g.operating_hours,
+                        g.updated_at as generator_updated_at,
+                        ast.online, ast.operational_status
                     FROM assets a
                     INNER JOIN generator_specs g ON a.asset_id = g.asset_id
                     LEFT JOIN sites s ON a.site_id = s.site_id
@@ -586,7 +650,49 @@ class AssetDatabase:
                 """
                 rows = await conn.fetch(query, *params)
             
-            generators = [dict(row) for row in rows]
+            # Restructure data to match GeneratorAsset model with nested generator field
+            generators = []
+            for row in rows:
+                row_dict = dict(row)
+                generator_data = {
+                    "asset_id": str(row_dict["asset_id"]),
+                    "asset_type": row_dict["asset_type"],
+                    "name": row_dict["name"],
+                    "description": row_dict["description"],
+                    "location": row_dict["location"],
+                    "site_id": str(row_dict["site_id"]) if row_dict.get("site_id") else None,
+                    "manufacturer": row_dict["manufacturer"],
+                    "model": row_dict["model"],
+                    "serial_number": row_dict["serial_number"],
+                    "installation_date": row_dict["installation_date"].isoformat() if row_dict.get("installation_date") else None,
+                    "status": row_dict["status"],
+                    "metadata": row_dict["metadata"],
+                    "created_at": row_dict["created_at"].isoformat(),
+                    "updated_at": row_dict["asset_updated_at"].isoformat(),
+                    "site_name": row_dict.get("site_name"),
+                    "online": row_dict.get("online"),
+                    "generator": {
+                        "asset_id": str(row_dict["asset_id"]),
+                        "rated_capacity_kw": float(row_dict["rated_capacity_kw"]),
+                        "max_output_kw": float(row_dict["max_output_kw"]),
+                        "min_output_kw": float(row_dict["min_output_kw"]) if row_dict.get("min_output_kw") else None,
+                        "generator_type": row_dict.get("generator_type"),
+                        "fuel_cost_per_kwh": float(row_dict["fuel_cost_per_kwh"]),
+                        "startup_cost": float(row_dict["startup_cost"]) if row_dict.get("startup_cost") else None,
+                        "shutdown_cost": float(row_dict["shutdown_cost"]) if row_dict.get("shutdown_cost") else None,
+                        "min_uptime_hours": float(row_dict["min_uptime_hours"]) if row_dict.get("min_uptime_hours") else None,
+                        "min_downtime_hours": float(row_dict["min_downtime_hours"]) if row_dict.get("min_downtime_hours") else None,
+                        "co2_emissions_kg_per_kwh": float(row_dict["co2_emissions_kg_per_kwh"]) if row_dict.get("co2_emissions_kg_per_kwh") else None,
+                        "fuel_type": row_dict.get("fuel_type"),
+                        "efficiency_at_rated_load": float(row_dict["efficiency_at_rated_load"]) if row_dict.get("efficiency_at_rated_load") else None,
+                        "ramp_up_rate_kw_per_min": float(row_dict["ramp_up_rate_kw_per_min"]) if row_dict.get("ramp_up_rate_kw_per_min") else None,
+                        "ramp_down_rate_kw_per_min": float(row_dict["ramp_down_rate_kw_per_min"]) if row_dict.get("ramp_down_rate_kw_per_min") else None,
+                        "operating_hours": row_dict.get("operating_hours"),
+                        "updated_at": row_dict["generator_updated_at"].isoformat(),
+                    }
+                }
+                generators.append(generator_data)
+            
             return generators, total
         
         except Exception as e:

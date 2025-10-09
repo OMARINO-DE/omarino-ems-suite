@@ -33,6 +33,10 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Set default API URLs - can be overridden at runtime
+ENV NEXT_PUBLIC_API_URL=https://ems-back.omarino.net
+ENV INTERNAL_API_URL=http://omarino-gateway:8080
+
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs

@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
 import { api } from '@/lib/api'
-import { ArrowLeft, Loader2, Download, CheckCircle, XCircle, Clock } from 'lucide-react'
+import { assetService, BatteryAsset } from '@/services/assetService'
+import { ArrowLeft, Loader2, Download, CheckCircle, XCircle, Clock, Battery } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 
 export default function NewOptimizationPage() {
@@ -19,6 +20,43 @@ export default function NewOptimizationPage() {
   const [error, setError] = useState('')
   const [optimizationJob, setOptimizationJob] = useState<any>(null)
   const [optimizationResult, setOptimizationResult] = useState<any>(null)
+  
+  // Asset selection states
+  const [batteries, setBatteries] = useState<BatteryAsset[]>([])
+  const [selectedBatteryId, setSelectedBatteryId] = useState<string>('')
+  const [loadingAssets, setLoadingAssets] = useState(false)
+  const [assetsError, setAssetsError] = useState('')
+
+  // Load batteries when optimization type requires them
+  useEffect(() => {
+    const loadBatteries = async () => {
+      if (!selectedType) return
+      
+      const batteryOptTypes = ['battery_dispatch', 'self_consumption', 'peak_shaving']
+      if (!batteryOptTypes.includes(selectedType)) {
+        setBatteries([])
+        setSelectedBatteryId('')
+        return
+      }
+
+      setLoadingAssets(true)
+      setAssetsError('')
+      try {
+        const data = await assetService.listBatteries({ status: 'active', limit: 100 })
+        setBatteries(data.items)
+        // Auto-select first battery if available
+        if (data.items.length > 0 && !selectedBatteryId) {
+          setSelectedBatteryId(data.items[0].asset_id)
+        }
+      } catch (err) {
+        setAssetsError(err instanceof Error ? err.message : 'Failed to load batteries')
+      } finally {
+        setLoadingAssets(false)
+      }
+    }
+
+    loadBatteries()
+  }, [selectedType])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -44,26 +82,49 @@ export default function NewOptimizationPage() {
         '1D': 1440,
       }
       
-      // Create demo assets based on optimization type
+      // Create assets based on optimization type
       const assets: any[] = []
       
-      // Battery-based optimizations
+      // Battery-based optimizations - use real battery if selected
       if (['battery_dispatch', 'self_consumption', 'peak_shaving'].includes(selectedType)) {
-        assets.push({
-          asset_id: 'battery-demo-001',
-          asset_type: 'battery',
-          name: 'Demo Battery',
-          battery: {
-            capacity_kwh: 100,
-            max_charge_kw: 50,
-            max_discharge_kw: 50,
-            efficiency: 0.95,
-            initial_soc: 0.5,
-            min_soc: 0.1,
-            max_soc: 0.9,
-            degradation_cost_per_kwh: 0.01
+        if (selectedBatteryId) {
+          // Use real battery from asset service
+          const selectedBattery = batteries.find(b => b.asset_id === selectedBatteryId)
+          if (selectedBattery) {
+            assets.push({
+              asset_id: selectedBattery.asset_id,
+              asset_type: 'battery',
+              name: selectedBattery.name,
+              battery: {
+                capacity_kwh: selectedBattery.battery.capacity_kwh,
+                max_charge_kw: selectedBattery.battery.max_charge_kw,
+                max_discharge_kw: selectedBattery.battery.max_discharge_kw,
+                efficiency: selectedBattery.battery.round_trip_efficiency,
+                initial_soc: selectedBattery.battery.initial_soc / 100, // Convert percent to decimal
+                min_soc: selectedBattery.battery.min_soc / 100, // Convert percent to decimal
+                max_soc: selectedBattery.battery.max_soc / 100, // Convert percent to decimal
+                degradation_cost_per_kwh: selectedBattery.battery.degradation_cost_per_kwh || 0.01
+              }
+            })
           }
-        })
+        } else {
+          // Fallback to demo battery if no real battery selected
+          assets.push({
+            asset_id: 'battery-demo-001',
+            asset_type: 'battery',
+            name: 'Demo Battery',
+            battery: {
+              capacity_kwh: 100,
+              max_charge_kw: 50,
+              max_discharge_kw: 50,
+              efficiency: 0.95,
+              initial_soc: 0.5,
+              min_soc: 0.1,
+              max_soc: 0.9,
+              degradation_cost_per_kwh: 0.01
+            }
+          })
+        }
       }
       
       // Unit commitment needs generators
@@ -242,6 +303,78 @@ export default function NewOptimizationPage() {
               Choose the type of optimization to perform
             </p>
           </div>
+
+          {/* Battery Asset Selection */}
+          {selectedType && ['battery_dispatch', 'self_consumption', 'peak_shaving'].includes(selectedType) && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Battery Asset
+              </label>
+              {loadingAssets ? (
+                <div className="flex items-center gap-2 px-4 py-3 border border-gray-300 rounded-lg bg-gray-50">
+                  <Loader2 className="h-4 w-4 animate-spin text-gray-500" />
+                  <span className="text-sm text-gray-600">Loading batteries...</span>
+                </div>
+              ) : assetsError ? (
+                <div className="px-4 py-3 border border-red-300 rounded-lg bg-red-50 text-red-800 text-sm">
+                  {assetsError}
+                </div>
+              ) : batteries.length === 0 ? (
+                <div className="px-4 py-3 border border-yellow-300 rounded-lg bg-yellow-50">
+                  <div className="flex items-center gap-2 text-yellow-800 mb-2">
+                    <Battery className="h-4 w-4" />
+                    <span className="text-sm font-medium">No batteries found</span>
+                  </div>
+                  <p className="text-sm text-yellow-700 mb-2">
+                    You don't have any active battery assets configured. A demo battery will be used for this optimization.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => router.push('/assets/batteries/new')}
+                    className="text-sm text-yellow-900 underline hover:text-yellow-950"
+                  >
+                    Add a battery asset →
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <select
+                    value={selectedBatteryId}
+                    onChange={(e) => setSelectedBatteryId(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  >
+                    {batteries.map((battery) => (
+                      <option key={battery.asset_id} value={battery.asset_id}>
+                        {battery.name} - {battery.battery.capacity_kwh} kWh ({battery.battery.max_charge_kw}/{battery.battery.max_discharge_kw} kW)
+                      </option>
+                    ))}
+                  </select>
+                  {selectedBatteryId && (() => {
+                    const battery = batteries.find(b => b.asset_id === selectedBatteryId)
+                    return battery ? (
+                      <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Battery className="h-4 w-4 text-blue-600" />
+                          <span className="text-sm font-medium text-blue-900">Selected Battery Details</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-sm text-blue-800">
+                          <div>Capacity: <strong>{battery.battery.capacity_kwh} kWh</strong></div>
+                          <div>Chemistry: <strong>{battery.battery.chemistry || 'N/A'}</strong></div>
+                          <div>Max Charge: <strong>{battery.battery.max_charge_kw} kW</strong></div>
+                          <div>Max Discharge: <strong>{battery.battery.max_discharge_kw} kW</strong></div>
+                          <div>Efficiency: <strong>{(battery.battery.round_trip_efficiency * 100).toFixed(1)}%</strong></div>
+                          <div>SOC Range: <strong>{battery.battery.min_soc}-{battery.battery.max_soc}%</strong></div>
+                        </div>
+                      </div>
+                    ) : null
+                  })()}
+                  <p className="mt-1 text-sm text-gray-500">
+                    Select the battery asset to use for this optimization
+                  </p>
+                </>
+              )}
+            </div>
+          )}
 
           {/* Time Horizon */}
           <div>

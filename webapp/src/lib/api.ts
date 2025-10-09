@@ -2,9 +2,44 @@ import axios, { AxiosInstance, AxiosRequestConfig } from 'axios'
 
 // Use internal Docker network URL for server-side requests, external URL for client-side
 const isServer = typeof window === 'undefined'
+
+// For client-side, always use the public API URL
+// For server-side, use the internal Docker network URL
 const API_BASE_URL = isServer 
-  ? (process.env.API_URL || 'http://omarino-gateway:8080')
-  : ((typeof window !== 'undefined' && (window as any).ENV?.API_URL) || process.env.NEXT_PUBLIC_API_URL || 'https://ems-back.omarino.net')
+  ? (process.env.INTERNAL_API_URL || 'http://omarino-gateway:8080')
+  : 'https://ems-back.omarino.net'
+
+console.log('[API Client] Initializing with baseURL:', API_BASE_URL, 'isServer:', isServer)
+
+// Server-side fetch utility (doesn't use axios or localStorage)
+async function serverFetch<T>(url: string, options?: RequestInit): Promise<T> {
+  const baseUrl = process.env.INTERNAL_API_URL || process.env.API_URL || 'http://omarino-gateway:8080'
+  const fullUrl = url.startsWith('http') ? url : `${baseUrl}${url}`
+  
+  const response = await fetch(fullUrl, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options?.headers,
+    },
+    next: { revalidate: 10 }, // Cache for 10 seconds
+  })
+
+  if (!response.ok) {
+    // Return empty data for 404s on list endpoints
+    if (response.status === 404 && (url.includes('/meters') || url.includes('/forecasts') || url.includes('/optimizations') || url.includes('/workflows'))) {
+      return (url.includes('/forecasts') ? { forecasts: [] } : 
+              url.includes('/optimizations') ? { optimizations: [] } :
+              url.includes('/workflows') ? [] :
+              url.includes('/models') ? { models: [] } :
+              url.includes('/types') ? { types: [] } :
+              []) as T
+    }
+    throw new Error(`API Error: ${response.status} ${response.statusText}`)
+  }
+
+  return response.json()
+}
 
 class ApiClient {
   private client: AxiosInstance
@@ -149,9 +184,80 @@ export const api = {
     getScheduledJobs: () => apiClient.get<any[]>('/api/scheduler/jobs'),
   },
 
+  // Assets
+  assets: {
+    listBatteries: async (params?: { limit?: number; offset?: number; status?: string; site_id?: string; search?: string; chemistry?: string }) => {
+      try {
+        const response = await apiClient.get<any>('/api/assets/batteries', { params })
+        return response
+      } catch (error: any) {
+        if (error.response?.status === 404) {
+          return { items: [], total: 0, limit: params?.limit || 50, offset: params?.offset || 0 }
+        }
+        throw error
+      }
+    },
+    getBattery: (id: string) => apiClient.get<any>(`/api/assets/batteries/${id}`),
+    createBattery: (data: any) => apiClient.post<any>('/api/assets/batteries', data),
+    updateBattery: (id: string, data: any) => apiClient.put<any>(`/api/assets/batteries/${id}`, data),
+    deleteBattery: (id: string) => apiClient.delete(`/api/assets/batteries/${id}`),
+    
+    listGenerators: async (params?: { limit?: number; offset?: number; status?: string; site_id?: string; search?: string; generator_type?: string }) => {
+      try {
+        const response = await apiClient.get<any>('/api/assets/generators', { params })
+        return response
+      } catch (error: any) {
+        if (error.response?.status === 404) {
+          return { items: [], total: 0, limit: params?.limit || 50, offset: params?.offset || 0 }
+        }
+        throw error
+      }
+    },
+    getGenerator: (id: string) => apiClient.get<any>(`/api/assets/generators/${id}`),
+    createGenerator: (data: any) => apiClient.post<any>('/api/assets/generators', data),
+    updateGenerator: (id: string, data: any) => apiClient.put<any>(`/api/assets/generators/${id}`, data),
+    deleteGenerator: (id: string) => apiClient.delete(`/api/assets/generators/${id}`),
+  },
+
   // Health
   health: {
     getGatewayHealth: () => apiClient.get<any>('/health'),
     getServicesHealth: () => apiClient.get<any>('/api/health/services'),
+  },
+}
+
+// Server-side only API functions (for SSR)
+export const serverApi = {
+  timeseries: {
+    getMeters: () => serverFetch<any[]>('/api/meters'),
+  },
+  forecasts: {
+    listModels: async () => {
+      const response = await serverFetch<{ models: any[] }>('/api/forecast/models')
+      return response.models || []
+    },
+    getForecasts: async (params?: { limit?: number }) => {
+      const queryString = params ? `?${new URLSearchParams(params as any).toString()}` : ''
+      const response = await serverFetch<{ forecasts: any[] }>(`/api/forecast/forecasts${queryString}`)
+      return response.forecasts || []
+    },
+  },
+  optimization: {
+    listTypes: async () => {
+      const response = await serverFetch<{ types: any[] }>('/api/optimize/types')
+      return response.types || []
+    },
+    listOptimizations: async (params?: { status?: string; type?: string; limit?: number }) => {
+      const queryString = params ? `?${new URLSearchParams(params as any).toString()}` : ''
+      const response = await serverFetch<{ optimizations: any[] }>(`/api/optimize/optimizations${queryString}`)
+      return response.optimizations || []
+    },
+  },
+  scheduler: {
+    getWorkflows: () => serverFetch<any[]>('/api/scheduler/workflows'),
+    getExecutions: async (params?: { workflowId?: string; limit?: number }) => {
+      const queryString = params ? `?${new URLSearchParams(params as any).toString()}` : ''
+      return serverFetch<any[]>(`/api/scheduler/executions${queryString}`)
+    },
   },
 }
