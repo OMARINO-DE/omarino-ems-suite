@@ -1,0 +1,203 @@
+name: AI Hub Tests
+
+on:
+  push:
+    branches: [ main, develop, feature/ai-hub-* ]
+    paths:
+      - 'ai-hub/**'
+      - '.github/workflows/ai-hub-tests.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'ai-hub/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        python-version: ['3.11']
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+        cache-dependency-path: ai-hub/requirements.txt
+    
+    - name: Install dependencies
+      working-directory: ./ai-hub
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Lint with ruff
+      working-directory: ./ai-hub
+      run: |
+        pip install ruff
+        ruff check app/ tests/
+      continue-on-error: true
+    
+    - name: Type check with mypy
+      working-directory: ./ai-hub
+      run: |
+        pip install mypy types-redis types-requests
+        mypy app/ --ignore-missing-imports
+      continue-on-error: true
+    
+    - name: Run unit tests
+      working-directory: ./ai-hub
+      env:
+        ENVIRONMENT: test
+        DATABASE_URL: postgresql://test:test@localhost:5432/test_db
+        REDIS_HOST: localhost
+        REDIS_PORT: 6379
+        REDIS_PASSWORD: ""
+      run: |
+        pytest -v -m "unit and not slow" \
+          --cov=app \
+          --cov-report=xml \
+          --cov-report=term-missing \
+          --junitxml=junit.xml
+    
+    - name: Run integration tests
+      working-directory: ./ai-hub
+      env:
+        ENVIRONMENT: test
+        DATABASE_URL: postgresql://test:test@localhost:5432/test_db
+        REDIS_HOST: localhost
+        REDIS_PORT: 6379
+        REDIS_PASSWORD: ""
+      run: |
+        pytest -v -m "integration and not slow" \
+          --cov=app \
+          --cov-append \
+          --cov-report=xml \
+          --cov-report=term-missing \
+          --junitxml=junit-integration.xml
+      continue-on-error: true
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        files: ./ai-hub/coverage.xml
+        flags: ai-hub
+        name: ai-hub-coverage
+        fail_ci_if_error: false
+    
+    - name: Publish test results
+      uses: EnricoMi/publish-unit-test-result-action@v2
+      if: always()
+      with:
+        files: |
+          ai-hub/junit.xml
+          ai-hub/junit-integration.xml
+    
+    - name: Comment PR with coverage
+      if: github.event_name == 'pull_request'
+      uses: py-cov-action/python-coverage-comment-action@v3
+      with:
+        GITHUB_TOKEN: ${{ github.token }}
+        MINIMUM_GREEN: 80
+        MINIMUM_ORANGE: 70
+
+  security:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      working-directory: ./ai-hub
+      run: |
+        python -m pip install --upgrade pip
+        pip install safety bandit
+    
+    - name: Security check with safety
+      working-directory: ./ai-hub
+      run: |
+        safety check --file requirements.txt --json
+      continue-on-error: true
+    
+    - name: Security check with bandit
+      working-directory: ./ai-hub
+      run: |
+        bandit -r app/ -f json -o bandit-report.json
+      continue-on-error: true
+    
+    - name: Upload security reports
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-reports
+        path: |
+          ai-hub/bandit-report.json
+
+  build:
+    runs-on: ubuntu-latest
+    needs: [test]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Build Docker image
+      working-directory: ./ai-hub
+      run: |
+        docker build -t ai-hub:test .
+    
+    - name: Test Docker image
+      run: |
+        docker run --rm ai-hub:test python -c "import app; print('OK')"
+    
+    - name: Scan image with Trivy
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'ai-hub:test'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    
+    - name: Upload Trivy results to GitHub Security
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'

@@ -29,6 +29,7 @@ s3fs==2024.2.0
 
 # Database and caching
 psycopg2-binary==2.9.9
+asyncpg==0.29.0
 redis==5.0.1
 sqlalchemy==2.0.25
 
@@ -42,6 +43,12 @@ structlog==24.1.0
 # Utilities
 python-dateutil==2.8.2
 pytz==2023.3
+
+# Training Pipeline (Task 3)
+ray[default]==2.9.2
+optuna==3.5.0
+APScheduler==3.10.4
+mlflow==2.10.2
 
 # Testing (dev)
 pytest==7.4.4

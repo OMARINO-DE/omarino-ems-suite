@@ -1,0 +1,500 @@
+name: Model Training CI/CD
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'ai-hub/**'
+      - '.github/workflows/model-training.yml'
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'ai-hub/**'
+  schedule:
+    # Run weekly on Sundays at 2 AM UTC
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
+    inputs:
+      model_type:
+        description: 'Model type to train'
+        required: true
+        default: 'forecast'
+        type: choice
+        options:
+          - forecast
+          - anomaly
+      force_retrain:
+        description: 'Force retrain even if model exists'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  PYTHON_VERSION: '3.11'
+  POETRY_VERSION: '1.7.1'
+  MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+
+jobs:
+  # ============================================================================
+  # LINT AND TEST
+  # ============================================================================
+  
+  lint-and-test:
+    name: Lint and Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      
+      - name: Install dependencies
+        working-directory: ./ai-hub
+        run: |
+          poetry install --with dev
+      
+      - name: Run linting
+        working-directory: ./ai-hub
+        run: |
+          poetry run ruff check app/ tests/
+          poetry run black --check app/ tests/
+          poetry run mypy app/
+      
+      - name: Run tests
+        working-directory: ./ai-hub
+        run: |
+          poetry run pytest tests/ \
+            --cov=app \
+            --cov-report=xml \
+            --cov-report=html \
+            --junitxml=junit.xml \
+            -v
+      
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./ai-hub/coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: ./ai-hub/junit.xml
+
+  # ============================================================================
+  # TRAIN BASELINE MODELS
+  # ============================================================================
+  
+  train-baseline:
+    name: Train Baseline Models
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    if: github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    
+    strategy:
+      matrix:
+        model_type: [forecast, anomaly]
+        algorithm: [lgbm, xgboost]
+      fail-fast: false
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      
+      - name: Install dependencies
+        working-directory: ./ai-hub
+        run: |
+          poetry install
+      
+      - name: Set up PostgreSQL
+        uses: ikalnytskyi/action-setup-postgres@v5
+        with:
+          username: postgres
+          password: postgres
+          database: ai_hub
+          port: 5432
+        id: postgres
+      
+      - name: Run database migrations
+        working-directory: ./ai-hub
+        env:
+          DATABASE_URL: ${{ steps.postgres.outputs.connection-uri }}
+        run: |
+          poetry run alembic upgrade head
+      
+      - name: Generate synthetic training data
+        working-directory: ./ai-hub
+        env:
+          DATABASE_URL: ${{ steps.postgres.outputs.connection-uri }}
+        run: |
+          poetry run python scripts/generate_training_data.py \
+            --model-type ${{ matrix.model_type }} \
+            --samples 10000 \
+            --output /tmp/training_data.csv
+      
+      - name: Create training job
+        working-directory: ./ai-hub
+        env:
+          DATABASE_URL: ${{ steps.postgres.outputs.connection-uri }}
+        run: |
+          poetry run python scripts/create_training_job.py \
+            --tenant-id "ci-baseline" \
+            --model-type ${{ matrix.model_type }} \
+            --algorithm ${{ matrix.algorithm }} \
+            --data-path /tmp/training_data.csv \
+            --output-path /tmp/model_${{ matrix.model_type }}_${{ matrix.algorithm }}.pkl \
+            --priority high
+      
+      - name: Wait for training completion
+        working-directory: ./ai-hub
+        env:
+          DATABASE_URL: ${{ steps.postgres.outputs.connection-uri }}
+        timeout-minutes: 30
+        run: |
+          poetry run python scripts/wait_for_job.py \
+            --job-id ${{ steps.create-job.outputs.job_id }} \
+            --timeout 1800
+      
+      - name: Upload trained model
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-${{ matrix.model_type }}-${{ matrix.algorithm }}
+          path: /tmp/model_${{ matrix.model_type }}_${{ matrix.algorithm }}.pkl
+          retention-days: 30
+
+  # ============================================================================
+  # VALIDATE MODELS
+  # ============================================================================
+  
+  validate-models:
+    name: Validate Models
+    runs-on: ubuntu-latest
+    needs: train-baseline
+    
+    strategy:
+      matrix:
+        model_type: [forecast, anomaly]
+        algorithm: [lgbm, xgboost]
+      fail-fast: false
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      
+      - name: Install dependencies
+        working-directory: ./ai-hub
+        run: |
+          poetry install
+      
+      - name: Download trained model
+        uses: actions/download-artifact@v4
+        with:
+          name: model-${{ matrix.model_type }}-${{ matrix.algorithm }}
+          path: /tmp/
+      
+      - name: Generate validation data
+        working-directory: ./ai-hub
+        run: |
+          poetry run python scripts/generate_training_data.py \
+            --model-type ${{ matrix.model_type }} \
+            --samples 2000 \
+            --output /tmp/validation_data.csv
+      
+      - name: Validate model performance
+        working-directory: ./ai-hub
+        run: |
+          poetry run python scripts/validate_model.py \
+            --model-path /tmp/model_${{ matrix.model_type }}_${{ matrix.algorithm }}.pkl \
+            --data-path /tmp/validation_data.csv \
+            --model-type ${{ matrix.model_type }} \
+            --output-report /tmp/validation_report_${{ matrix.model_type }}_${{ matrix.algorithm }}.json
+      
+      - name: Check performance thresholds
+        working-directory: ./ai-hub
+        run: |
+          poetry run python scripts/check_thresholds.py \
+            --report-path /tmp/validation_report_${{ matrix.model_type }}_${{ matrix.algorithm }}.json \
+            --model-type ${{ matrix.model_type }}
+      
+      - name: Upload validation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-report-${{ matrix.model_type }}-${{ matrix.algorithm }}
+          path: /tmp/validation_report_${{ matrix.model_type }}_${{ matrix.algorithm }}.json
+          retention-days: 90
+
+  # ============================================================================
+  # DEPLOY APPROVED MODELS
+  # ============================================================================
+  
+  deploy-models:
+    name: Deploy Models
+    runs-on: ubuntu-latest
+    needs: validate-models
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: production
+    
+    strategy:
+      matrix:
+        model_type: [forecast, anomaly]
+        algorithm: [lgbm, xgboost]
+      fail-fast: false
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      
+      - name: Install dependencies
+        working-directory: ./ai-hub
+        run: |
+          poetry install
+      
+      - name: Download trained model
+        uses: actions/download-artifact@v4
+        with:
+          name: model-${{ matrix.model_type }}-${{ matrix.algorithm }}
+          path: /tmp/
+      
+      - name: Download validation report
+        uses: actions/download-artifact@v4
+        with:
+          name: validation-report-${{ matrix.model_type }}-${{ matrix.algorithm }}
+          path: /tmp/
+      
+      - name: Register model in MLflow
+        working-directory: ./ai-hub
+        env:
+          MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
+        run: |
+          poetry run python scripts/register_model.py \
+            --model-path /tmp/model_${{ matrix.model_type }}_${{ matrix.algorithm }}.pkl \
+            --model-name "${{ matrix.model_type }}_${{ matrix.algorithm }}_baseline" \
+            --model-type ${{ matrix.model_type }} \
+            --algorithm ${{ matrix.algorithm }} \
+            --validation-report /tmp/validation_report_${{ matrix.model_type }}_${{ matrix.algorithm }}.json \
+            --stage "Production"
+      
+      - name: Update model registry
+        working-directory: ./ai-hub
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PROD }}
+        run: |
+          poetry run python scripts/update_registry.py \
+            --model-name "${{ matrix.model_type }}_${{ matrix.algorithm }}_baseline" \
+            --version ${{ github.sha }} \
+            --status "deployed" \
+            --environment "production"
+
+  # ============================================================================
+  # HYPERPARAMETER OPTIMIZATION
+  # ============================================================================
+  
+  hpo-optimization:
+    name: Run HPO
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.force_retrain == 'true')
+    
+    strategy:
+      matrix:
+        model_type: [forecast, anomaly]
+      fail-fast: false
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      
+      - name: Install dependencies
+        working-directory: ./ai-hub
+        run: |
+          poetry install
+      
+      - name: Set up PostgreSQL
+        uses: ikalnytskyi/action-setup-postgres@v5
+        with:
+          username: postgres
+          password: postgres
+          database: ai_hub
+          port: 5432
+        id: postgres
+      
+      - name: Run database migrations
+        working-directory: ./ai-hub
+        env:
+          DATABASE_URL: ${{ steps.postgres.outputs.connection-uri }}
+        run: |
+          poetry run alembic upgrade head
+      
+      - name: Generate HPO training data
+        working-directory: ./ai-hub
+        env:
+          DATABASE_URL: ${{ steps.postgres.outputs.connection-uri }}
+        run: |
+          poetry run python scripts/generate_training_data.py \
+            --model-type ${{ matrix.model_type }} \
+            --samples 20000 \
+            --output /tmp/hpo_data.csv
+      
+      - name: Run HPO study
+        working-directory: ./ai-hub
+        env:
+          DATABASE_URL: ${{ steps.postgres.outputs.connection-uri }}
+          MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
+        timeout-minutes: 120
+        run: |
+          poetry run python scripts/run_hpo.py \
+            --model-type ${{ matrix.model_type }} \
+            --data-path /tmp/hpo_data.csv \
+            --n-trials 100 \
+            --sampler tpe \
+            --pruner median \
+            --timeout 7200 \
+            --output-study hpo_${{ matrix.model_type }}_${{ github.run_id }}
+      
+      - name: Get best hyperparameters
+        working-directory: ./ai-hub
+        env:
+          DATABASE_URL: ${{ steps.postgres.outputs.connection-uri }}
+        run: |
+          poetry run python scripts/get_best_params.py \
+            --study-name hpo_${{ matrix.model_type }}_${{ github.run_id }} \
+            --output /tmp/best_params_${{ matrix.model_type }}.json
+      
+      - name: Upload HPO results
+        uses: actions/upload-artifact@v4
+        with:
+          name: hpo-results-${{ matrix.model_type }}
+          path: /tmp/best_params_${{ matrix.model_type }}.json
+          retention-days: 90
+
+  # ============================================================================
+  # NOTIFICATIONS
+  # ============================================================================
+  
+  notify:
+    name: Send Notifications
+    runs-on: ubuntu-latest
+    needs: [validate-models, deploy-models]
+    if: always()
+    
+    steps:
+      - name: Check job status
+        run: |
+          echo "Validation status: ${{ needs.validate-models.result }}"
+          echo "Deployment status: ${{ needs.deploy-models.result }}"
+      
+      - name: Send Slack notification
+        if: always()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "Model Training Pipeline Status",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Model Training Pipeline* - Run #${{ github.run_number }}"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Branch:*\n${{ github.ref_name }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Commit:*\n${{ github.sha }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Validation:*\n${{ needs.validate-models.result }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Deployment:*\n${{ needs.deploy-models.result }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Workflow"
+                      },
+                      "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                    }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

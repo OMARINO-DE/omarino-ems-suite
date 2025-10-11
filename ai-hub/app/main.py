@@ -16,7 +16,7 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 
 from app.config import settings
-from app.routers import health, forecast, anomaly, explain, model_registry, features
+from app.routers import health, forecast, anomaly, explain, model_registry, features, training, hpo, experiments
 from app.services import get_model_cache
 
 # Configure structured logging
@@ -121,6 +121,9 @@ app.include_router(anomaly.router, prefix="/ai", tags=["Anomaly Detection"])
 app.include_router(explain.router, prefix="/ai", tags=["Explainability"])
 app.include_router(model_registry.router, tags=["Model Registry"])
 app.include_router(features.router, tags=["Features"])
+app.include_router(training.router, tags=["Training"])
+app.include_router(hpo.router, tags=["HPO"])
+app.include_router(experiments.router, tags=["Experiments"])
 
 
 @app.get("/")
